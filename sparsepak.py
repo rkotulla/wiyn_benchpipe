@@ -26,6 +26,8 @@ class BenchSpek(object):
     master_bias = None
     master_flat = None
     master_comp = None
+    n_fibers = 82
+    linelist = []
 
     def __init__(self, json_file, raw_dir=None):
         self.logger = logging.getLogger('BenchSpek')
@@ -99,7 +101,7 @@ class BenchSpek(object):
             flat = self.master_flat
 
         self.full_y = numpy.arange(flat.shape[0])
-        self.n_fibers = 82
+        # self.n_fibers = 82
 
         #
         # do a background subtraction first to increase contrast
@@ -128,6 +130,7 @@ class BenchSpek(object):
         # subtract the modeled background
         bgsub = flat - gradient_2d
         bgsub[bgsub < 0] = 0
+        self.bgsub = bgsub # TODO: fix this with proper variable name
 
         # Now trace the fibers
         self.logger.debug("Tracing ridge-lines of each fiber")
@@ -193,16 +196,83 @@ class BenchSpek(object):
         # full frame
         self.logger.debug("Upsampling fiber traces to full resolution")
         y_dim = self.full_y.shape[0]
-        fullres_left    = numpy.full((y_dim, self.n_fibers), fill_value=numpy.NaN)
-        fullres_right   = numpy.full((y_dim, self.n_fibers), fill_value=numpy.NaN)
-        fullres_centers = numpy.full((y_dim, self.n_fibers), fill_value=numpy.NaN)
+        self.fullres_left    = numpy.full((y_dim, self.n_fibers), fill_value=numpy.NaN)
+        self.fullres_right   = numpy.full((y_dim, self.n_fibers), fill_value=numpy.NaN)
+        self.fullres_centers = numpy.full((y_dim, self.n_fibers), fill_value=numpy.NaN)
         for fiber_id in range(self.n_fibers):
-            for meas, full in zip([all_lefts, all_rights, centers], [fullres_left, fullres_right, fullres_centers]):
+            for meas, full in zip([all_lefts, all_rights, centers],
+                                  [self.fullres_left, self.fullres_right, self.fullres_centers]):
                 polyfit = numpy.polyfit(all_traces_y, meas[:, fiber_id], deg=2)
                 full[:, fiber_id] = numpy.polyval(polyfit, self.full_y)
 
         self.logger.info("All done tracing fibers in original pixel space")
 
+
+    def extract_spectra_raw(self, imgdata, weights=None, vmin=0, vmax=75000, fibers=None, plot=False):
+        # extract all fibers
+        iy, ix = numpy.indices(imgdata.shape)
+        #print(ix.shape)
+        #print(fullres_left[:, 0].shape)
+
+        if (weights is None):
+            weights = numpy.ones_like(imgdata, dtype=float)
+#        weights = bgsub
+
+        fiber_specs = numpy.full((self.full_y.shape[0], self.n_fibers), fill_value=numpy.NaN)
+
+        if fibers is None:
+            fibers = numpy.arange(self.n_fibers)
+
+        for fiber_id in fibers:  # range(n_fibers):
+            in_this_fiber = (ix > self.fullres_left[:, fiber_id].reshape((-1, 1))) & (
+                        ix < self.fullres_right[:, fiber_id].reshape((-1, 1))) & (weights > 0)
+
+            _mf = weights.copy()
+            _spec = imgdata.copy()
+            _mf[~in_this_fiber] = numpy.NaN
+            _spec[~in_this_fiber] = numpy.NaN
+
+            # pyfits.HDUList([
+            #     pyfits.PrimaryHDU(),
+            #     pyfits.ImageHDU(data=_mf)
+            # ]).writeto("pre_integration_fiber=%d.fits" % (fiber_id), overwrite=True)
+
+            weighted = numpy.nansum(_spec * _mf, axis=1) / numpy.nansum(_mf, axis=1)
+            # print(weighted.shape)
+            fiber_specs[:, fiber_id] = weighted
+
+            _sum = numpy.nansum(_spec, axis=1)
+
+            if (not plot):
+                continue
+
+            fig, ax = plt.subplots()
+            # ax.imshow(in_this_fiber.astype(int), origin='lower')
+            # ax.scatter(full_y, weighted, s=0.2, label='weighted')
+            # ax.scatter(full_y, _sum/4, s=0.2, label='sum')
+            ax.plot(self.full_y, weighted, lw=0.3)
+            # ax.legend()
+            ax.set_ylim((vmin, vmax))
+
+        return fiber_specs
+
+    def read_reference_linelist(self):
+        opt = self.config['linelist']
+        if (opt.endswith(".fits")):
+            # read file, identify lines
+            pass
+        else:
+            # read lines from file
+            linelist = []
+            self.logger.info("Reading line list from text file (%s)", opt)
+            with open(opt, "r") as ll:
+                lines = ll.readlines()
+                for l in lines:
+                    wl = float(l.strip().split(" ")[0])
+                    linelist.append(wl)
+            self.linelist = numpy.array(linelist)
+        self.logger.info("Found %d reference lines for wavelength calibration",
+                         self.linelist.shape[0])
 
     def reduce(self, save=False):
 
@@ -215,7 +285,19 @@ class BenchSpek(object):
         _master_comp_fn = "master_comp.fits" if save else None
         self.make_master_comp(save=_master_comp_fn)
 
+        self.logger.info("Tracing fibers")
         self.trace_fibers_raw(flat=self.master_flat)
+
+        self.logger.info("Extracting fiber spectra from master flat")
+        self.flat_spectra = self.extract_spectra_raw(imgdata=self.master_flat, weights=self.master_flat)
+        # print(self.flat_spectra)
+        numpy.savetxt("flat_spectra.dat", self.flat_spectra)
+
+        self.logger.info("Extracting fiber spectra from master comp")
+        self.comp_spectra = self.extract_spectra_raw(imgdata=self.master_comp, weights=self.master_flat)
+        numpy.savetxt("comp_spectra.dat", self.comp_spectra)
+
+        self.read_reference_linelist()
 
 if __name__ == '__main__':
 
