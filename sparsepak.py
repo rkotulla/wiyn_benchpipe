@@ -99,164 +99,6 @@ class BenchSpek(object):
             self.logger.info("Writing master comp to %s", save)
             pyfits.PrimaryHDU(data=self.master_comp).writeto(save, overwrite=True)
 
-    # def trace_fibers_raw(self, flat=None, save=None):
-    #     if (flat is None):
-    #         flat = self.master_flat
-    #
-    #     self.full_y = numpy.arange(flat.shape[0])
-    #     # self.n_fibers = 82
-    #
-    #     #
-    #     # do a background subtraction first to increase contrast
-    #     #
-    #     # first step, reject outliers by median-filtering ALONG fibers
-    #     # (9,1) works well for sparsepak (9 px wide across fibers, 1px long along fibers)
-    #     self.logger.debug("Preparing frame for fiber tracing")
-    #     median_filter_1d = scipy.ndimage.median_filter(
-    #         input=flat, size=(9, 1),
-    #     )
-    #     min_filter = scipy.ndimage.minimum_filter(
-    #         input=median_filter_1d,  # masterflat,
-    #         size=(5, 30)
-    #     )
-    #     # Now fit a linear slope to the background
-    #     left_edge = 80  ## adjust this for binning, assuming 4x3
-    #     right_edge = 570
-    #     w = 10
-    #
-    #     left = numpy.mean(min_filter[:, left_edge - w:left_edge + w], axis=1).reshape((-1, 1))
-    #     right = numpy.mean(min_filter[:, right_edge - w:right_edge + w], axis=1).reshape((-1, 1))
-    #     slope = (right - left) / (right_edge - left_edge)
-    #     iy, ix = numpy.indices(flat.shape)
-    #     gradient_2d = (ix - left_edge) * slope + left
-    #
-    #     # subtract the modeled background
-    #     bgsub = flat - gradient_2d
-    #     bgsub[bgsub < 0] = 0
-    #     self.bgsub = bgsub  # TODO: fix this with proper variable name
-    #
-    #     # Now trace the fibers
-    #     self.logger.debug("Tracing ridge-lines of each fiber")
-    #     dy = 5  ## adjust for binning
-    #     traces = pandas.DataFrame()
-    #     all_peaks = []
-    #     all_traces_y = []
-    #     for y in range(dy, bgsub.shape[0], 2 * dy):
-    #         prof = numpy.nanmean(bgsub[y - dy:y + dy, :], axis=0)
-    #         peak_intensity = numpy.mean(prof)
-    #         # print(y, peak_intensity)
-    #
-    #         peaks, peak_props = scipy.signal.find_peaks(prof, height=0.5 * peak_intensity, distance=3)
-    #         if (peaks.shape[0] != self.n_fibers):  # adjust for other instruments -- 82 is for sparsepak
-    #             print(y, "off, #=%d" % (peaks.shape[0]))
-    #             continue
-    #
-    #         all_peaks.append(peaks)
-    #         all_traces_y.append(y)
-    #
-    #     centers = numpy.array(all_peaks)
-    #
-    #     # derive the average spacing between fibers
-    #     # we need this to determine the boundaries of the fibers at the
-    #     # far-left and far-right edges
-    #     avg_peak2peak_spacing = numpy.mean(numpy.diff(centers, axis=1), axis=0).reshape((1, -1))
-    #     avg_peak2peak_vertical = numpy.mean(numpy.diff(centers, axis=1), axis=1).reshape((-1, 1))
-    #     # print(avg_peak2peak_spacing)
-    #     self.logger.info("Average fiber spacing: %f pixels",
-    #                      numpy.mean(avg_peak2peak_spacing))
-    #
-    #     leftmost_peak = numpy.min(centers, axis=1)
-    #     rightmost_peak = numpy.max(centers, axis=1)
-    #
-    #     # invert masterflat to search for the minima between the cells
-    #     self.logger.debug("Tracing valley lines that limit fibers")
-    #     inverted = -1. * bgsub
-    #     all_troughs = []
-    #     for i, y in enumerate(all_traces_y):
-    #         prof = numpy.nanmean(inverted[y - dy:y + dy, :], axis=0)
-    #         peak_intensity = numpy.min(prof)
-    #         # print(y, peak_intensity)
-    #
-    #         peaks, peak_props = scipy.signal.find_peaks(prof, height=0.5 * peak_intensity, distance=3)
-    #
-    #         _left = leftmost_peak[i]
-    #         _right = rightmost_peak[i]
-    #         good = (peaks > _left) & (peaks < _right)
-    #         good_peaks = peaks[good]
-    #         # print(y, peak_intensity, peaks.shape, good_peaks.shape)
-    #         all_troughs.append(good_peaks)
-    #
-    #     all_troughs = numpy.array(all_troughs)
-    #
-    #     # figure out the outer edge of the left & rightmost fibers
-    #     far_left = centers[:, 0].reshape((-1, 1)) - 0.5 * avg_peak2peak_vertical
-    #     print(far_left.shape)
-    #     far_right = centers[:, -1].reshape((-1, 1)) + 0.5 * avg_peak2peak_vertical
-    #     all_lefts = numpy.hstack([far_left, all_troughs])
-    #     all_rights = numpy.hstack([all_troughs, far_right])
-    #
-    #     # Now we have the coarsely sampled position along the fiber, upscale this to
-    #     # full frame
-    #     self.logger.debug("Upsampling fiber traces to full resolution")
-    #     y_dim = self.full_y.shape[0]
-    #     self.fullres_left = numpy.full((y_dim, self.n_fibers), fill_value=numpy.NaN)
-    #     self.fullres_right = numpy.full((y_dim, self.n_fibers), fill_value=numpy.NaN)
-    #     self.fullres_centers = numpy.full((y_dim, self.n_fibers), fill_value=numpy.NaN)
-    #     for fiber_id in range(self.n_fibers):
-    #         for meas, full in zip([all_lefts, all_rights, centers],
-    #                               [self.fullres_left, self.fullres_right, self.fullres_centers]):
-    #             polyfit = numpy.polyfit(all_traces_y, meas[:, fiber_id], deg=2)
-    #             full[:, fiber_id] = numpy.polyval(polyfit, self.full_y)
-    #
-    #     self.logger.info("All done tracing fibers in original pixel space")
-    #
-    # def extract_spectra_raw(self, imgdata, weights=None, vmin=0, vmax=75000, fibers=None, plot=False):
-    #     # extract all fibers
-    #     iy, ix = numpy.indices(imgdata.shape)
-    #     # print(ix.shape)
-    #     # print(fullres_left[:, 0].shape)
-    #
-    #     if (weights is None):
-    #         weights = numpy.ones_like(imgdata, dtype=float)
-    #     #        weights = bgsub
-    #
-    #     fiber_specs = numpy.full((self.full_y.shape[0], self.n_fibers), fill_value=numpy.NaN)
-    #
-    #     if fibers is None:
-    #         fibers = numpy.arange(self.n_fibers)
-    #
-    #     for fiber_id in fibers:  # range(n_fibers):
-    #         in_this_fiber = (ix > self.fullres_left[:, fiber_id].reshape((-1, 1))) & (
-    #                 ix < self.fullres_right[:, fiber_id].reshape((-1, 1))) & (weights > 0)
-    #
-    #         _mf = weights.copy()
-    #         _spec = imgdata.copy()
-    #         _mf[~in_this_fiber] = numpy.NaN
-    #         _spec[~in_this_fiber] = numpy.NaN
-    #
-    #         # pyfits.HDUList([
-    #         #     pyfits.PrimaryHDU(),
-    #         #     pyfits.ImageHDU(data=_mf)
-    #         # ]).writeto("pre_integration_fiber=%d.fits" % (fiber_id), overwrite=True)
-    #
-    #         weighted = numpy.nansum(_spec * _mf, axis=1) / numpy.nansum(_mf, axis=1)
-    #         # print(weighted.shape)
-    #         fiber_specs[:, fiber_id] = weighted
-    #
-    #         _sum = numpy.nansum(_spec, axis=1)
-    #
-    #         if (not plot):
-    #             continue
-    #
-    #         fig, ax = plt.subplots()
-    #         # ax.imshow(in_this_fiber.astype(int), origin='lower')
-    #         # ax.scatter(full_y, weighted, s=0.2, label='weighted')
-    #         # ax.scatter(full_y, _sum/4, s=0.2, label='sum')
-    #         ax.plot(self.full_y, weighted, lw=0.3)
-    #         # ax.legend()
-    #         ax.set_ylim((vmin, vmax))
-    #
-    #     return fiber_specs
 
     def read_reference_linelist(self):
         opt = self.config['linelist']
@@ -275,6 +117,142 @@ class BenchSpek(object):
             self.linelist = numpy.array(linelist)
         self.logger.info("Found %d reference lines for wavelength calibration",
                          self.linelist.shape[0])
+        return self.linelist
+
+    def find_lines(self, spec, threshold=1300, distance=5):
+        # first, apply running minimum filter to take out continuum
+        mins = scipy.ndimage.minimum_filter(input=spec, size=20, mode='constant', cval=0)
+        # since the direct minimum is too edge-y, let's smooth it
+        cont = scipy.ndimage.gaussian_filter1d(input=mins, sigma=10)
+
+        contsub = spec - cont
+        # min_peak_height = 300
+        peaks, peak_props = scipy.signal.find_peaks(contsub, height=threshold, distance=distance)
+        return contsub, peaks
+
+    def find_wavelength_solution(self, spec, lambda_central=None, dispersion=None, min_lines=3, make_plots=True):
+
+        self.logger.info("Finding wavelength solution")
+
+        if (lambda_central is None):
+            lambda_central = self.config['central_wavelength']
+        if (dispersion is None):
+            dispersion = self.config['dispersion']
+
+        print("spec shape:", spec.shape)
+
+        # find peaks
+        contsub, peaks = self.find_lines(spec, threshold=1300, distance=5)
+        self.logger.info("Found %d peaks" % (peaks.shape[0]))
+        full_y = numpy.arange(spec.shape[0])
+
+        if (make_plots):
+            fig, ax = plt.subplots(figsize=(13, 5))
+            ax.plot(full_y, contsub, lw=0.5)
+            # ax.plot(wl, contsub, lw=0.5)
+            ylabelpos = 20000
+            for p in peaks:
+                ax.axvline(x=p, ymin=0.0, ymax=0.8, lw=0.2, color='red', alpha=0.5)
+                ax.text(p, ylabelpos, "%d" % (p), rotation='vertical', ha='center')
+            #     if (reflines is not None):
+            #         ax.scatter(reflines, numpy.ones_like(reflines)*2500, marker="|")
+            # ax.set_yscale('log')
+            ax.set_ylim(0, 25000)
+            fig.savefig("reference_spectrum.png", dpi=300)
+
+        # generate a tree for the reference lines
+        reflines = self.linelist
+        ref2d = numpy.array([reflines, reflines]).T
+        # print(ref2d.shape)
+        ref_tree = scipy.spatial.KDTree(
+            data=ref2d
+        )
+
+        # scan the range
+        var_wl, n_wl = 0.002, 100
+        var_disp, n_disp = 0.05, 100
+        scan_wl = numpy.linspace(lambda_central * (1. - var_wl), lambda_central * (1 + var_wl), n_wl)
+        scan_disp = numpy.linspace(dispersion * (1. - var_disp), dispersion * (1. + var_disp), n_disp)
+        self.logger.debug("Scanned central wavelength range: %.3f ... %.3f" % (scan_wl[0], scan_wl[-1]))
+        self.logger.debug("Scanned dispersion range: %.3f ... %.3f" % (scan_disp[0], scan_disp[-1]))
+
+        central_y = full_y[full_y.shape[0] // 2]
+        peaks2d = numpy.array([peaks, peaks]).T
+        results = []
+        # print(ref2d.shape)
+        for cw, disp in itertools.product(scan_wl, scan_disp):
+            wl = cw + (peaks2d - central_y) * disp
+            # print(wl.shape)
+            # break
+
+            #
+            # find matches based on simple solution
+            #
+            d, i = ref_tree.query(wl, k=1, p=1, distance_upper_bound=4)
+            n_good_line_matches = numpy.sum(i < ref_tree.n)
+
+            #
+            # assume we correctly matched all matched lines, let's do a proper fit and recount matches
+            #
+            testfit = [0, 0, 0]
+            if (n_good_line_matches >= min_lines):
+                match = (i < ref_tree.n)
+                # variance = numpy.var()
+
+                #
+                # Find which lines match
+                #
+                ref_wl = reflines[i[match]]
+                lines_y = peaks[match] - central_y
+                #         print(ref_wl)
+                #         print(lines_y)
+                #         print(testfit)
+
+                #
+                # Perform a proper dispersion solution fit using the matched line pairs
+                #
+                testfit = numpy.polyfit(lines_y, ref_wl, deg=2)
+                wl_postfit = numpy.polyval(testfit, peaks2d - central_y)
+                d2, i2 = ref_tree.query(wl_postfit, k=1, p=1, distance_upper_bound=2)
+                n_good_line_matches2 = numpy.sum(i2 < ref_tree.n)
+                ref_wl_refined = reflines[i2[i2 < ref_tree.n]]
+
+                #
+                # Using the proper fit, calculate the calibrated position for each line
+                # (based on the on-detector Y position and the wavelength solution we just derived )
+                #
+                mylines = wl_postfit[i2 < ref_tree.n, 0]
+                #             print(mylines.shape, ref_wl.shape, wl_postfit.shape)
+                # mylines_wl = numpy.polyval(testfit, mylines - central_y)
+
+                #
+                # and finally figure out the quality of the solution based on the observed dispersion
+                #
+                delta_wl = mylines - ref_wl_refined
+                var_wl = numpy.std(delta_wl)
+                # print(delta_wl, var_wl)
+            else:
+                n_good_line_matches2 = 0
+                var_wl = 999
+
+            results.append(
+                [cw, disp, n_good_line_matches, n_good_line_matches2, var_wl, testfit[0], testfit[1], testfit[2]])
+            # break
+
+        results = numpy.array(results)
+        numpy.savetxt("results.dump", results)
+
+        i_most_matches = numpy.argmax(results[:, 3])
+        print(i_most_matches)
+        print("most matches", results[i_most_matches])
+
+        all_best_matches = results[(results[:, 3] >= results[i_most_matches, 3])]
+
+        i_smallest_scatter = numpy.argmin(all_best_matches[:, 4])
+        best_solution = all_best_matches[i_smallest_scatter]
+        print(best_solution)
+
+        return best_solution  # results[i_most_matches]
 
     def reduce(self, save=False):
 
@@ -313,10 +291,23 @@ class BenchSpek(object):
 
         self.read_reference_linelist()
 
+        # find wavelength solution for one "reference" fiber
+        self.ref_fiberid = 41
+        _wavelength_solution = self.find_wavelength_solution(self.comp_spectra[:, self.ref_fiberid])
+        self.wavelength_solution = _wavelength_solution[-3:]
+        print("wavelength solution:", self.wavelength_solution)
+
+        # Now re-identify lines across all other fiber traces
+
+
+
 if __name__ == '__main__':
 
 #    logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
     logging.basicConfig(level=logging.DEBUG)
+
+    mpl_logger = logging.getLogger('matplotlib')
+    mpl_logger.setLevel(logging.WARNING)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', dest='config',
