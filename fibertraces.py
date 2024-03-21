@@ -184,8 +184,15 @@ class GenericFiberSpecs(object):
 
         return fiber_specs
 
+    def get_fiber_spacing(self):
+        frc = self.fullres_centers
+        # total_dx = frc[frc.shape[0] // 2, self.n_fibers-1] - frc[frc.shape[0] // 2, 0]
+        total_dx = self.get_mean_fiber_position(fiber_id=self.n_fibers-1) - self.get_mean_fiber_position(fiber_id=0)
+        dx = total_dx / (self.n_fibers-1)
+        return dx
 
-
+    def get_mean_fiber_position(self, fiber_id):
+        return numpy.mean(self.fullres_centers[:, fiber_id])
 
 
 
