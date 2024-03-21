@@ -18,6 +18,10 @@ import pandas
 import itertools
 import logging
 
+from specutils import Spectrum1D
+import astropy.units as u
+from specutils.manipulation import FluxConservingResampler, LinearInterpolatedResampler, SplineInterpolatedResampler
+
 import fibertraces
 from fibertraces import *
 
@@ -31,6 +35,9 @@ class BenchSpek(object):
     master_comp = None
     n_fibers = 82
     linelist = []
+    output_wl_min = None
+    output_wl_max = None
+    output_dispersion = None
 
     def __init__(self, json_file, raw_dir=None):
         self.logger = logging.getLogger('BenchSpek')
@@ -75,23 +82,33 @@ class BenchSpek(object):
         _list = []
         for fn in self.config['flat']:
             _fn = os.path.join(self.raw_dir, fn)
-        hdulist = pyfits.open(_fn)
-        data = hdulist[0].data.astype(float)
-        if (self.master_flat is not None):
-            data -= self.master_bias
-        _list.append(data)
+            hdulist = pyfits.open(_fn)
+            data = hdulist[0].data.astype(float)
+            if (self.master_bias is not None):
+                data -= self.master_bias
+            _list.append(data)
         stack = numpy.array(_list)
-        self.master_flat = numpy.mean(stack, axis=0)
-        print(self.master_flat.shape)
+        self.master_flat = numpy.median(stack, axis=0)
+        # print(self.master_flat.shape)
+        # if (save is not None):
+        #     self.logger.info("Writing master flat to %s", save)
+        #     pyfits.PrimaryHDU(data=self.master_flat).writeto(save, overwrite=True)
+
+        # normalize flat-field
+        avg_flat = numpy.nanmean(self.master_flat, axis=1).reshape((-1,1))
+        print(avg_flat.shape)
+        self.master_flat /= avg_flat
+        numpy.savetxt("masterflat_norm.txt", avg_flat)
         if (save is not None):
             self.logger.info("Writing master flat to %s", save)
             pyfits.PrimaryHDU(data=self.master_flat).writeto(save, overwrite=True)
+
 
     def make_master_comp(self, save=None):
         self.logger.info("Creating master comp")
         self.master_comp = self.basic_reduction(
             filelist=self.config['comp'],
-            bias=self.master_bias, flat=None,
+            bias=self.master_bias, flat=self.master_flat,
             op=numpy.median
         )
         print(self.master_comp.shape)
@@ -135,9 +152,9 @@ class BenchSpek(object):
         self.logger.info("Finding wavelength solution")
 
         if (lambda_central is None):
-            lambda_central = self.config['central_wavelength']
+            lambda_central = self.get_config('setup', 'central_wavelength')
         if (dispersion is None):
-            dispersion = self.config['dispersion']
+            dispersion = self.get_config('setup', 'dispersion')
 
         print("spec shape:", spec.shape)
 
@@ -254,7 +271,204 @@ class BenchSpek(object):
 
         return best_solution  # results[i_most_matches]
 
-    def reduce(self, save=False):
+
+    def reidentify_lines(self, comp_spectra, ref_fiberid=41, make_plots=False):
+        ##################################
+        #
+        #   RE-IDENTIFY
+        #
+        ##################################
+
+        # cross-correlate in pixelspace to match curvature
+        findlines_opt = dict(threshold=1000, distance=5)
+        max_shift = 3
+        full_y = numpy.arange(comp_spectra.shape[0])
+        center_y = full_y[full_y.shape[0] // 2]
+        polydeg = 2
+        centered_y = full_y - center_y
+        # debug = False
+
+        # ref_fiberid = 41
+        ref_contsub, ref_peaks = self.find_lines(comp_spectra[:, ref_fiberid], **findlines_opt)
+        ref_peaks -= center_y
+        ref_tree = scipy.spatial.KDTree(data=numpy.array([ref_peaks, ref_peaks]).T)
+
+        poly_transforms = [None] * 82
+        poly_transforms[ref_fiberid] = [0., 1., 0.]
+
+        for ranges in [numpy.arange(ref_fiberid + 1, 82, 1), numpy.arange(0, ref_fiberid)[::-1]]:
+            poly_transform = poly_transforms[ref_fiberid]
+            for fiberid in ranges:  # numpy.arange(ref_fiberid, 81, 1):
+                # find lines in the new fiber
+                contsub, new_peaks = self.find_lines(comp_spectra[:, fiberid], **findlines_opt)
+                new_peaks -= center_y
+
+                # apply correction from the previous fiber trace
+                matched2prev_peaks = numpy.polyval(poly_transform, new_peaks)
+
+                # convert to 2d to make trees work
+                np2 = numpy.array([matched2prev_peaks, matched2prev_peaks]).T
+
+                # now match the rough-aligned peaks to the reference peaks
+                d, i = ref_tree.query(np2, k=1, p=1, distance_upper_bound=max_shift)
+                good_match = i < ref_tree.n
+                print("fiber %d: ref=%d, this=%d, matched=%d" % (
+                    fiberid, ref_tree.n, new_peaks.shape[0], numpy.sum(good_match)))
+
+                new_pos = new_peaks[good_match]
+                ref_pos = ref_peaks[i[good_match]]
+                # print(new_pos.shape, ref_pos.shape)
+                new_poly = numpy.polyfit(new_pos, ref_pos, deg=polydeg)
+                print(new_poly)
+
+                if (make_plots):
+                    fig, ax = plt.subplots(nrows=2, figsize=(12, 5))
+                    fig.suptitle("fiber %d (ref: %d)" % (fiberid, ref_fiberid))
+                    ax[0].plot(centered_y, ref_contsub, lw=0.5, label="#%d / REF" % (ref_fiberid))
+                    ax[0].plot(centered_y, contsub, lw=0.5, label="#%d" % (fiberid))
+                    ax[0].scatter(centered_y, contsub, s=1, label="#%d" % (fiberid))
+                    ax[0].legend()
+                    ax[0].set_ylim((0, 1e4))
+                    # ax[0].set_xlim((-120,20))
+
+                    corrected_cy = numpy.polyval(new_poly, centered_y)
+                    ax[1].plot(centered_y, ref_contsub, lw=0.5, label="#%d / REF" % (ref_fiberid))
+                    ax[1].plot(corrected_cy, contsub, lw=0.5, label="#%d" % (fiberid))
+                    ax[1].scatter(corrected_cy, contsub, s=1, label="#%d" % (fiberid))
+                    ax[1].legend()
+                    ax[1].set_ylim((0, 1e4))
+                    # ax[1].set_xlim((-120,20))
+                    ax[1].annotate("shift: %+.2f" % (new_poly[-1]), (0.05, 0.9), xycoords='axes fraction', ha='left',
+                                   va='top')
+                    fig.savefig("reidentify_fiber_%d.png" % (fiberid), dpi=300)
+                    plt.close(fig)
+                    print()
+
+                poly_transform = new_poly  # numpy.polyfit(ref_pos, new_pos, deg=polydeg)
+                poly_transforms[fiberid] = new_poly
+
+            self.transform2d = numpy.zeros((82, 3))
+            for i, t in enumerate(poly_transforms):
+                if (t is not None):
+                    self.transform2d[i, :] = t
+
+            # poly_transforms = numpy.array(poly_transforms)
+
+        if (make_plots):
+            i = numpy.arange(self.transform2d.shape[0])
+            fig, axs = plt.subplots(nrows=3, figsize=(7,5), sharex=True)
+
+            axs[0].scatter(i, self.transform2d[:, -1], s=0.5)
+            axs[0].set_ylabel("Offset dY")
+
+            axs[1].scatter(i, self.transform2d[:, -2], s=0.5)
+            axs[1].set_ylabel("relative dispersion")
+
+            axs[2].scatter(i, self.transform2d[:, -3], s=0.5)
+            axs[2].set_ylabel("quadratic term")
+            axs[2].set_xlabel("Fiber ID")
+
+            fig.savefig("reidentify_poly_transforms.png", dpi=300)
+
+        return poly_transforms
+
+
+
+    def map_2d_wavelength_solution(self, comp_image, traces):
+        #
+        # Now derive the full 2-d wavelength solution for the comp frames
+        #
+        fullmap_y = numpy.zeros_like(comp_image, dtype=float)
+        # fullmap_y.shape
+        full_y = numpy.arange(comp_image.shape[0])
+        center_y = full_y[full_y.shape[0] // 2]
+        centered_y = full_y - center_y
+
+        center_x = self.master_comp.shape[1] // 2
+        full_correction_per_fiber = numpy.array([
+            numpy.polyval(self.transform2d[i, :], centered_y) for i in range(self.n_fibers)])
+        print(full_correction_per_fiber.shape)
+
+        iy,ix = numpy.indices(comp_image.shape, dtype=float)
+
+        # print(ix.shape)
+        centered_ix = ix - center_x
+        print(traces.fullres_centers.shape)
+        for y in full_y:  # [600:610]:
+            centers = traces.fullres_centers[y, :] - center_x
+            corrections = full_correction_per_fiber[:, y]
+            pfy = numpy.polyfit(centers, corrections, deg=2)
+            # print(pfy)
+            fullmap_y[y, :] = numpy.polyval(pfy, centered_ix[y, :])
+
+        # calculate actual wavelength for each point
+        self.wavelength_mapping_2d = numpy.polyval(self.wavelength_solution, fullmap_y)
+
+        # fig, ax = plt.subplots()
+        # ax.imshow(fullmap_y)
+        pyfits.PrimaryHDU(data=fullmap_y).writeto("full_ymapping.fits", overwrite=True)
+        pyfits.PrimaryHDU(data=self.wavelength_mapping_2d).writeto("full_wlmapping.fits", overwrite=True)
+
+        return self.wavelength_mapping_2d
+
+    def rectify(self, image, poly_transforms, min_wl=None, max_wl=None, out_dispersion=0.2):
+
+        inspec = image.copy()
+
+        # prepare the final output wavelength grid
+        if (min_wl is None):
+            min_wl = numpy.nanmin(self.wavelength_mapping_2d)
+        if (max_wl is None):
+            max_wl = numpy.nanmax(self.wavelength_mapping_2d)
+
+        # out_dispersion = 0.2
+        # buffer = 5
+        out_min_wl = out_dispersion * (numpy.floor(min_wl / out_dispersion))
+        out_max_wl = out_dispersion * (numpy.ceil(max_wl / out_dispersion))
+        self.logger.info("output min/max wavelength: %f // %f", out_min_wl, out_max_wl)
+
+        n_wl_points = int(((max_wl - min_wl) / out_dispersion)) + 1
+        # out_max_wl = out_dispersion * (numpy.ceil(max_wl/dispersion))
+        out_wl_points = numpy.arange(n_wl_points, dtype=float) * out_dispersion + out_min_wl
+        out_spectral_axis = out_wl_points * u.AA
+        # print(out_spectral_axis)
+
+        if (self.output_wl_min is None):
+            self.output_wl_min = min_wl
+        if (self.output_wl_max is None):
+            self.output_wl_max = max_wl
+        if (self.output_dispersion is None):
+            self.output_dispersion = out_dispersion
+
+        self.logger.info("Rectifying frame, output wavelength range is %.3f ... %.3f AA, dispersion %.3f A/px" % (
+            min_wl, max_wl, out_dispersion))
+
+
+        fluxcon = FluxConservingResampler(extrapolation_treatment='nan_fill')
+
+        rectified_2d = numpy.zeros((n_wl_points, inspec.shape[1]))
+        for x in range(self.wavelength_mapping_2d.shape[1]):
+            # make sure the input is sorted
+            wl_raw = self.wavelength_mapping_2d[:, x]
+            wl_sort = numpy.argsort(wl_raw)
+            wl_AA = wl_raw[wl_sort] * u.AA
+            # print(wl_AA)
+            flux = inspec[:, x][wl_sort] * u.DN
+            spec = Spectrum1D(spectral_axis=wl_AA, flux=flux)
+            rect_spec = fluxcon(spec, out_spectral_axis)
+            rectified_2d[:, x] = rect_spec.flux.to(u.DN).value
+
+        return rectified_2d
+
+    def get_config(self, *args, fallback=None):
+        config = self.config
+        for opt in args:
+            if opt not in config:
+                return fallback
+            config = config[opt]
+        return config
+
+    def calibrate(self, save=False):
 
         _master_bias_fn = "master_bias.fits" if save else None
         self.make_master_bias(save=_master_bias_fn)
@@ -262,30 +476,31 @@ class BenchSpek(object):
         _master_flat_fn = "master_flat.fits" if save else None
         self.make_master_flat(save=_master_flat_fn)
 
+        # return
+
         _master_comp_fn = "master_comp.fits" if save else None
         self.make_master_comp(save=_master_comp_fn)
 
         self.logger.info("Tracing fibers")
         # self.trace_fibers_raw(flat=self.master_flat)
 
-
         self.logger.info("Extracting fiber spectra from master flat")
-        raw_tracers = fibertraces.SparsepakFiberSpecs()
-        raw_tracers.find_trace_fibers(self.master_flat)
-        # comp_spectra = raw_tracers.extract_fiber_spectra(
+        self.raw_traces = fibertraces.SparsepakFiberSpecs()
+        self.raw_traces.find_trace_fibers(self.master_flat)
+        # comp_spectra = raw_traces.extract_fiber_spectra(
         #     imgdata=self.master_comp,
         #     weights=self.master_flat,
         # )
 
         # self.flat_spectra = self.extract_spectra_raw(imgdata=self.master_flat, weights=self.master_flat)
-        self.flat_spectra = raw_tracers.extract_fiber_spectra(
+        self.flat_spectra = self.raw_traces.extract_fiber_spectra(
             imgdata=self.master_flat, weights=self.master_flat)
         # print(self.flat_spectra)
         numpy.savetxt("flat_spectra2.dat", self.flat_spectra)
 
         self.logger.info("Extracting fiber spectra from master comp")
         # self.comp_spectra = self.extract_spectra_raw(imgdata=self.master_comp, weights=self.master_flat)
-        self.comp_spectra = raw_tracers.extract_fiber_spectra(
+        self.comp_spectra = self.raw_traces.extract_fiber_spectra(
             imgdata=self.master_comp, weights=self.master_flat)
         numpy.savetxt("comp_spectra2.dat", self.comp_spectra)
 
@@ -298,7 +513,95 @@ class BenchSpek(object):
         print("wavelength solution:", self.wavelength_solution)
 
         # Now re-identify lines across all other fiber traces
+        self.poly_transforms = self.reidentify_lines(
+            comp_spectra=self.comp_spectra,
+            ref_fiberid=self.ref_fiberid,
+            make_plots=False, #True
+        )
 
+        self.map_2d_wavelength_solution(comp_image=self.master_comp, traces=self.raw_traces)
+
+
+        self.comp_rectified_2d = self.rectify(
+            self.master_comp, self.poly_transforms,
+            min_wl=self.get_config('output', 'min_wl', fallback=None),
+            max_wl=self.get_config('output', 'max_wl', fallback=None),
+            out_dispersion=self.get_config('output', 'dispersion', fallback=None)
+        )
+
+        phdu = pyfits.PrimaryHDU(data=self.comp_rectified_2d)
+        # dispersion solution
+        phdu.header['CRVAL2'] = self.output_wl_min * 1.e-10
+        phdu.header['CRPIX2'] = 1.
+        phdu.header['CD2_2'] = self.output_dispersion * 1.e-10
+        phdu.header['CTYPE2'] = "WAVE-W2A"
+        # fiber-id (approximate)
+        phdu.header['CRVAL1'] = 1
+        phdu.header['CRPIX1'] = self.raw_traces.get_mean_fiber_position(fiber_id=0)
+        phdu.header['CD1_1'] = 1./self.raw_traces.get_fiber_spacing()
+        phdu.header['CTYPE1'] = "FIBER-ID"
+        self.logger.info("Writing rectified COMP spectrum")
+        phdu.writeto("comp_rectified.fits", overwrite=True)
+
+        # TODO HERE: create traces for the rectified spectra
+        self.logger.info("Rectifing master flatfield for final extraction")
+        self.flat_rectified_2d = self.rectify(
+            self.master_flat, self.poly_transforms,
+            min_wl=self.get_config('output', 'min_wl', fallback=None),
+            max_wl=self.get_config('output', 'max_wl', fallback=None),
+            out_dispersion=self.get_config('output', 'dispersion', fallback=None)
+        )
+        phdu = pyfits.PrimaryHDU(data=self.flat_rectified_2d)
+        # dispersion solution
+        phdu.header['CRVAL2'] = self.output_wl_min * 1.e-10
+        phdu.header['CRPIX2'] = 1.
+        phdu.header['CD2_2'] = self.output_dispersion * 1.e-10
+        phdu.header['CTYPE2'] = "WAVE-W2A"
+        # fiber-id (approximate)
+        phdu.header['CRVAL1'] = 1
+        phdu.header['CRPIX1'] = self.raw_traces.get_mean_fiber_position(fiber_id=0)
+        phdu.header['CD1_1'] = 1./self.raw_traces.get_fiber_spacing()
+        phdu.header['CTYPE1'] = "FIBER-ID"
+        self.logger.info("Writing rectified COMP spectrum")
+        phdu.writeto("flat_rectified.fits", overwrite=True)
+
+    def reduce(self):
+
+        for target_name in self.get_config('science'):
+            self.logger.info("Starting reduction for target %s",  target_name)
+            filelist = self.get_config(target_name)
+            # make sure we always deal with lists, even if they only have one element
+            if (not isinstance(filelist, list)):
+                filelist = [filelist]
+            # print(filelist)
+
+            target_raw = self.basic_reduction(
+                filelist=filelist,
+                bias=self.master_bias,
+                flat=None,
+                op=numpy.nanmedian
+            )
+            target_rect = self.rectify(
+                target_raw, self.poly_transforms,
+                min_wl=self.get_config('output', 'min_wl', fallback=None),
+                max_wl=self.get_config('output', 'max_wl', fallback=None),
+                out_dispersion=self.get_config('output', 'dispersion', fallback=None)
+            )
+            phdu = pyfits.PrimaryHDU(data=target_rect)
+            # dispersion solution
+            phdu.header['CRVAL2'] = self.output_wl_min * 1.e-10
+            phdu.header['CRPIX2'] = 1.
+            phdu.header['CD2_2'] = self.output_dispersion * 1.e-10
+            phdu.header['CTYPE2'] = "WAVE-W2A"
+            # fiber-id (approximate)
+            phdu.header['CRVAL1'] = 1
+            phdu.header['CRPIX1'] = self.raw_traces.get_mean_fiber_position(fiber_id=0)
+            phdu.header['CD1_1'] = 1. / self.raw_traces.get_fiber_spacing()
+            phdu.header['CTYPE1'] = "FIBER-ID"
+            out_fn = "%s_rect.fits" % (target_name)
+            self.logger.info("Writing rectified spectrum to %s", out_fn)
+            phdu.writeto(out_fn, overwrite=True)
+            self.logger.debug("done with target %s", target_name)
 
 
 if __name__ == '__main__':
@@ -319,4 +622,6 @@ if __name__ == '__main__':
     benchspec = BenchSpek(args.config, args.raw_dir)
     # print(json.dumps(benchspec.config, indent=2))
 
-    benchspec.reduce(save=True)
+    benchspec.calibrate(save=True)
+    benchspec.reduce()
+
