@@ -11,6 +11,7 @@ import numpy
 import scipy
 import scipy.signal
 import scipy.ndimage
+import scipy.interpolate
 import sklearn
 import matplotlib.pyplot as plt
 import glob
@@ -565,6 +566,78 @@ class BenchSpek(object):
         self.logger.info("Writing rectified COMP spectrum")
         phdu.writeto("flat_rectified.fits", overwrite=True)
 
+        # Now prepare line-traces using the rectified master flatfield
+        self.rect_traces = fibertraces.SparsepakFiberSpecs()
+        self.rect_traces.find_trace_fibers(self.flat_rectified_2d)
+
+        self.get_fiber_flatfields()
+
+    def get_fiber_flatfields(self, filter_width=50):
+        self.flat_fibers = self.rect_traces.extract_fiber_spectra(
+            imgdata=self.flat_rectified_2d,
+            weights=self.flat_rectified_2d,
+        )
+
+        wl = numpy.arange(self.flat_fibers.shape[0], dtype=float)
+        pad_width = filter_width - (wl.shape[0] % filter_width)
+        wl_padded = numpy.pad(wl, (0, pad_width),
+                              mode='constant', constant_values=0)
+        wl_padded[-pad_width:] = numpy.NaN
+        rebinned_wl = numpy.nanmedian(wl_padded.reshape((-1, filter_width)), axis=1)
+
+        fiber_flatfields = [None] * self.n_fibers
+        self.fiber_flat_splines = [None] * self.n_fibers
+
+        for fiber_id in range(self.n_fibers):
+            # pick a fiber to work on
+            fiberspec = self.flat_fibers[:, fiber_id]
+
+            # make sure we can parcel out the full-res spectra into
+            # chunks of a given width
+            fiber_padded = numpy.pad(fiberspec, (0, pad_width),
+                                     mode='constant', constant_values=0)
+            fiber_padded[-pad_width:] = numpy.NaN
+            n_good = numpy.isfinite(wl_padded) & numpy.isfinite(fiber_padded)
+
+            # calculate the median flux in each little parcel of fluxes
+            rebinned_spec = numpy.nanmedian(fiber_padded.reshape((-1, filter_width)), axis=1)
+            rebinned_samples = numpy.nansum(n_good.astype(int).reshape((-1, filter_width)), axis=1)
+            #     print(rebinned_samples)
+            #     print(rebinned_wl)
+            good = rebinned_samples > 0.8 * filter_width
+
+            spline = scipy.interpolate.CubicSpline(
+                x=rebinned_wl[good],
+                y=rebinned_spec[good],
+                bc_type='natural'
+            )
+            full_spline = spline(wl)
+
+            self.fiber_flat_splines[fiber_id] = spline
+            fiber_flatfields[fiber_id] = full_spline
+
+        self.fiber_flatfields = numpy.array(fiber_flatfields)
+
+    def apply_fiber_flatfields(self, fiberspecs):
+        return fiberspecs / self.fiber_flatfields
+
+    def write_rectified_spectrum(self, spec, output_filename):
+        phdu = pyfits.PrimaryHDU(data=spec)
+        # dispersion solution
+        phdu.header['CRVAL2'] = self.output_wl_min * 1.e-10
+        phdu.header['CRPIX2'] = 1.
+        phdu.header['CD2_2'] = self.output_dispersion * 1.e-10
+        phdu.header['CTYPE2'] = "WAVE-W2A"
+        # fiber-id (approximate)
+        phdu.header['CRVAL1'] = 1
+        phdu.header['CRPIX1'] = self.raw_traces.get_mean_fiber_position(fiber_id=0)
+        phdu.header['CD1_1'] = 1. / self.raw_traces.get_fiber_spacing()
+        phdu.header['CTYPE1'] = "FIBER-ID"
+        #out_fn = "%s_rect.fits" % (target_name)
+        self.logger.info("Writing rectified spectrum to %s", output_filename)
+        phdu.writeto(output_filename, overwrite=True)
+        #
+
     def reduce(self):
 
         for target_name in self.get_config('science'):
@@ -587,26 +660,42 @@ class BenchSpek(object):
                 max_wl=self.get_config('output', 'max_wl', fallback=None),
                 out_dispersion=self.get_config('output', 'dispersion', fallback=None)
             )
-            phdu = pyfits.PrimaryHDU(data=target_rect)
-            # dispersion solution
-            phdu.header['CRVAL2'] = self.output_wl_min * 1.e-10
-            phdu.header['CRPIX2'] = 1.
-            phdu.header['CD2_2'] = self.output_dispersion * 1.e-10
-            phdu.header['CTYPE2'] = "WAVE-W2A"
-            # fiber-id (approximate)
-            phdu.header['CRVAL1'] = 1
-            phdu.header['CRPIX1'] = self.raw_traces.get_mean_fiber_position(fiber_id=0)
-            phdu.header['CD1_1'] = 1. / self.raw_traces.get_fiber_spacing()
-            phdu.header['CTYPE1'] = "FIBER-ID"
-            out_fn = "%s_rect.fits" % (target_name)
-            self.logger.info("Writing rectified spectrum to %s", out_fn)
-            phdu.writeto(out_fn, overwrite=True)
-            self.logger.debug("done with target %s", target_name)
+            self.write_rectified_spectrum(
+                spec=target_rect,
+                output_filename="%s__rectified.fits" % (target_name)
+            )
 
+            # extract all spectra for all fibers
+            target_fiberspecs = self.rect_traces.extract_fiber_spectra(
+                imgdata=target_rect,
+                weights=self.flat_rectified_2d,
+            )
+
+            # apply flatfielding
+            target_flatfielded = self.apply_fiber_flatfields(target_fiberspecs)
+            self.write_rectified_spectrum(
+                spec=target_flatfielded,
+                output_filename="%s__flatfielded.fits" % (target_name)
+            )
+
+            # prepare sky spectrum
+            sky_fibers = numpy.array([22, 16, 2, 38, 54, 80, 70])
+            sky_fiberids = 82 - sky_fibers
+            sky = target_flatfielded[sky_fiberids]
+            print(sky.shape)
+            mean_sky = numpy.nanmedian(sky, axis=0)
+
+            # subtract sky
+            target_skysub = target_flatfielded - mean_sky
+            self.write_rectified_spectrum(
+                spec=target_skysub,
+                output_filename="%s__skysub.fits" % (target_name)
+            )
+            self.logger.info("done with target %s", target_name)
 
 if __name__ == '__main__':
 
-#    logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
+    #    logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
     logging.basicConfig(level=logging.DEBUG)
 
     mpl_logger = logging.getLogger('matplotlib')
