@@ -270,6 +270,19 @@ class BenchSpek(object):
         best_solution = all_best_matches[i_smallest_scatter]
         print(best_solution)
 
+        # Now that we have the best solution, do a final match and make some plots
+        best_fit = best_solution[-3:]
+        wl_postfit = numpy.polyval(best_fit, peaks2d - central_y)
+        full_wl = numpy.polyval(best_fit, full_y-central_y)
+        d2, i2 = ref_tree.query(wl_postfit, k=1, p=1, distance_upper_bound=2)
+        matched = (i2 < ref_tree.n)
+        n_good_line_matches2 = numpy.sum(i2 < ref_tree.n)
+        ref_wl_refined = reflines[i2[i2 < ref_tree.n]]
+        fig, ax = plt.subplots()
+        #ax.scatter(wl_postfit[matched], ref_wl_refined)
+        ax.scatter(peaks[matched], ref_wl_refined)
+        ax.plot(full_y, full_wl, alpha=0.5)
+        fig.savefig("matched__wavelength_vs_pixel.png")
         return best_solution  # results[i_most_matches]
 
 
