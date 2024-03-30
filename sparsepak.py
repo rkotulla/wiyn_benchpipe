@@ -122,6 +122,9 @@ class BenchSpek(object):
         opt = self.config['linelist']
         if (opt.endswith(".fits")):
             # read file, identify lines
+
+
+
             pass
         else:
             # read lines from file
@@ -198,6 +201,7 @@ class BenchSpek(object):
         peaks2d = numpy.array([peaks, peaks]).T
         results = []
         # print(ref2d.shape)
+
         for cw, disp in itertools.product(scan_wl, scan_disp):
             wl = cw + (peaks2d - central_y) * disp
             # print(wl.shape)
@@ -253,8 +257,8 @@ class BenchSpek(object):
                 n_good_line_matches2 = 0
                 var_wl = 999
 
-            results.append(
-                [cw, disp, n_good_line_matches, n_good_line_matches2, var_wl, testfit[0], testfit[1], testfit[2]])
+            results.append([cw, disp, n_good_line_matches, n_good_line_matches2, var_wl, testfit[0], testfit[1], testfit[2]])
+
             # break
 
         results = numpy.array(results)
@@ -292,29 +296,33 @@ class BenchSpek(object):
         #   RE-IDENTIFY
         #
         ##################################
+        self.logger.info("starting to re-identify lines across frame")
 
         # cross-correlate in pixelspace to match curvature
         findlines_opt = dict(threshold=1000, distance=5)
         max_shift = 3
         full_y = numpy.arange(comp_spectra.shape[0])
+        print("full_y shape", full_y.shape)
         center_y = full_y[full_y.shape[0] // 2]
         polydeg = 2
         centered_y = full_y - center_y
         # debug = False
 
         # ref_fiberid = 41
-        ref_contsub, ref_peaks = self.find_lines(comp_spectra[:, ref_fiberid], **findlines_opt)
+        ref_contsub, ref_peaks = self.find_lines(comp_spectra[ref_fiberid], **findlines_opt)
         ref_peaks -= center_y
         ref_tree = scipy.spatial.KDTree(data=numpy.array([ref_peaks, ref_peaks]).T)
 
         poly_transforms = [None] * 82
         poly_transforms[ref_fiberid] = [0., 1., 0.]
 
-        for ranges in [numpy.arange(ref_fiberid + 1, 82, 1), numpy.arange(0, ref_fiberid)[::-1]]:
+        for ranges in [numpy.arange(ref_fiberid + 1, self.n_fibers, 1),
+                       numpy.arange(0, ref_fiberid)[::-1]]:
             poly_transform = poly_transforms[ref_fiberid]
             for fiberid in ranges:  # numpy.arange(ref_fiberid, 81, 1):
                 # find lines in the new fiber
-                contsub, new_peaks = self.find_lines(comp_spectra[:, fiberid], **findlines_opt)
+                contsub, new_peaks = self.find_lines(
+                    comp_spectra[fiberid], **findlines_opt)
                 new_peaks -= center_y
 
                 # apply correction from the previous fiber trace
@@ -509,7 +517,7 @@ class BenchSpek(object):
         # self.flat_spectra = self.extract_spectra_raw(imgdata=self.master_flat, weights=self.master_flat)
         self.flat_spectra = self.raw_traces.extract_fiber_spectra(
             imgdata=self.master_flat, weights=self.master_flat)
-        # print(self.flat_spectra)
+        print("flat_spectra.shape", self.flat_spectra.shape)
         numpy.savetxt("flat_spectra2.dat", self.flat_spectra)
 
         self.logger.info("Extracting fiber spectra from master comp")
@@ -522,7 +530,10 @@ class BenchSpek(object):
 
         # find wavelength solution for one "reference" fiber
         self.ref_fiberid = 41
-        _wavelength_solution = self.find_wavelength_solution(self.comp_spectra[:, self.ref_fiberid])
+        _wavelength_solution = self.find_wavelength_solution(
+            self.comp_spectra[self.ref_fiberid],
+            make_plots=True
+        )
         self.wavelength_solution = _wavelength_solution[-3:]
         print("wavelength solution:", self.wavelength_solution)
 
@@ -591,7 +602,7 @@ class BenchSpek(object):
             weights=self.flat_rectified_2d,
         )
 
-        wl = numpy.arange(self.flat_fibers.shape[0], dtype=float)
+        wl = numpy.arange(self.flat_fibers.shape[1], dtype=float)
         pad_width = filter_width - (wl.shape[0] % filter_width)
         wl_padded = numpy.pad(wl, (0, pad_width),
                               mode='constant', constant_values=0)
@@ -603,7 +614,7 @@ class BenchSpek(object):
 
         for fiber_id in range(self.n_fibers):
             # pick a fiber to work on
-            fiberspec = self.flat_fibers[:, fiber_id]
+            fiberspec = self.flat_fibers[fiber_id]
 
             # make sure we can parcel out the full-res spectra into
             # chunks of a given width
