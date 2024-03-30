@@ -638,6 +638,23 @@ class BenchSpek(object):
         phdu.writeto(output_filename, overwrite=True)
         #
 
+    def write_extracted_spectra(self, spec, output_filename):
+        phdu = pyfits.PrimaryHDU(data=spec)
+        # dispersion solution
+        phdu.header['CRVAL1'] = self.output_wl_min * 1.e-10
+        phdu.header['CRPIX1'] = 1.
+        phdu.header['CD1_1'] = self.output_dispersion * 1.e-10
+        phdu.header['CTYPE1'] = "WAVE-W2A"
+        # fiber-id (approximate)
+        phdu.header['CRVAL2'] = 1
+        phdu.header['CRPIX2'] = 1.
+        phdu.header['CD2_2'] = 1.
+        phdu.header['CTYPE2'] = "FIBER-ID"
+        #out_fn = "%s_rect.fits" % (target_name)
+        self.logger.info("Writing rectified spectrum to %s", output_filename)
+        phdu.writeto(output_filename, overwrite=True)
+        #
+
     def reduce(self):
 
         for target_name in self.get_config('science'):
@@ -673,21 +690,21 @@ class BenchSpek(object):
 
             # apply flatfielding
             target_flatfielded = self.apply_fiber_flatfields(target_fiberspecs)
-            self.write_rectified_spectrum(
+            self.write_extracted_spectra(
                 spec=target_flatfielded,
                 output_filename="%s__flatfielded.fits" % (target_name)
             )
 
             # prepare sky spectrum
             sky_fibers = numpy.array([22, 16, 2, 38, 54, 80, 70])
-            sky_fiberids = 82 - sky_fibers
+            sky_fiberids = self.n_fibers - sky_fibers
             sky = target_flatfielded[sky_fiberids]
             print(sky.shape)
             mean_sky = numpy.nanmedian(sky, axis=0)
 
             # subtract sky
             target_skysub = target_flatfielded - mean_sky
-            self.write_rectified_spectrum(
+            self.write_extracted_spectra(
                 spec=target_skysub,
                 output_filename="%s__skysub.fits" % (target_name)
             )
