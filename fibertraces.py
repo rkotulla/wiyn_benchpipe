@@ -146,7 +146,7 @@ class GenericFiberSpecs(object):
             weights = numpy.ones_like(imgdata, dtype=float)
         #        weights = bgsub
 
-        fiber_specs = numpy.full((self.full_y.shape[0], self.n_fibers), fill_value=numpy.NaN)
+        fiber_specs = numpy.full((self.n_fibers, self.full_y.shape[0]), fill_value=numpy.NaN)
 
         if fibers is None:
             fibers = numpy.arange(self.n_fibers)
@@ -167,7 +167,7 @@ class GenericFiberSpecs(object):
 
             weighted = numpy.nansum(_spec * _mf, axis=1) / numpy.nansum(_mf, axis=1)
             # print(weighted.shape)
-            fiber_specs[:, fiber_id] = weighted
+            fiber_specs[fiber_id] = weighted
 
             _sum = numpy.nansum(_spec, axis=1)
 
