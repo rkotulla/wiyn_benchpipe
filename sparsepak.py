@@ -537,6 +537,8 @@ class BenchSpek(object):
         self.wavelength_solution = _wavelength_solution[-3:]
         print("wavelength solution:", self.wavelength_solution)
 
+        sys.exit(0)
+
         # Now re-identify lines across all other fiber traces
         self.poly_transforms = self.reidentify_lines(
             comp_spectra=self.comp_spectra,
@@ -753,5 +755,5 @@ if __name__ == '__main__':
     # print(json.dumps(benchspec.config, indent=2))
 
     benchspec.calibrate(save=True)
-    benchspec.reduce()
+    # benchspec.reduce()
 
