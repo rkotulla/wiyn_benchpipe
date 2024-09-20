@@ -30,7 +30,7 @@ from fibertraces import *
 class BenchSpek(object):
 
     config = None
-    raw_directory = "."
+    raw_dir  = None
     master_bias = None
     master_flat = None
     master_comp = None
@@ -46,12 +46,41 @@ class BenchSpek(object):
         self.json_file = json_file
         self.read_config()
         if (raw_dir is not None and os.path.isdir(raw_dir)):
-            self.raw_dir = raw_dir = raw_dir
+            self.raw_dir = raw_dir
 
     def read_config(self):
         self.logger.info(self.json_file)
         with open(self.json_file, "r") as f:
             self.config = json.load(f)
+        if (self.raw_dir is None):
+            try:
+                self.raw_dir = self.config['raw_directory']
+            except:
+                self.raw_dir = "."
+
+        # ensure output directories exist
+        if (not os.path.isdir(self.config['cals_directory'])):
+            self.logger.info("Creating CALS directory: %s" % (self.config['cals_directory']))
+            os.makedirs(self.config['cals_directory'])
+        else:
+            self.logger.info("CALS directory (%s) exists" % (self.config['cals_directory']))
+        if (not os.path.isdir(self.config['out_directory'])):
+            self.logger.info("Creating OUTPUT directory: %s" % (self.config['out_directory']))
+            os.makedirs(self.config['output_directory'])
+        else:
+            self.logger.info("OUTPUT directory (%s) already exists" % (self.config['out_directory']))
+
+    def write_FITS(self, hdulist, filename, overwrite=True):
+        self.logger.info("Writing FITS file (%s)" % (filename))
+        hdulist.writeto(filename, overwrite=overwrite)
+
+    def write_cals_FITS(self, hdulist, filename, **kwargs):
+        full_fn = os.path.join(self.config['cals_directory'], filename)
+        self.write_FITS(hdulist, full_fn, **kwargs)
+
+    def write_results_FITS(self, hdulist, filename, **kwargs):
+        full_fn = os.path.join(self.config['out_directory'], filename)
+        self.write_FITS(hdulist, full_fn, **kwargs)
 
     def basic_reduction(self, filelist, bias=None, flat=None, op=numpy.mean):
         _list = []
@@ -76,7 +105,8 @@ class BenchSpek(object):
         print(self.master_bias.shape)
         if (save is not None):
             self.logger.info("Writing master bias to %s", save)
-            pyfits.PrimaryHDU(data=self.master_bias).writeto(save, overwrite=True)
+            self.write_cals_FITS(pyfits.PrimaryHDU(data=self.master_bias), filename=save)
+            # pyfits.PrimaryHDU(data=self.master_bias).writeto(save, overwrite=True)
 
     def make_master_flat(self, save=None):
         self.logger.info("Creating master flat")
@@ -102,7 +132,7 @@ class BenchSpek(object):
         numpy.savetxt("masterflat_norm.txt", avg_flat)
         if (save is not None):
             self.logger.info("Writing master flat to %s", save)
-            pyfits.PrimaryHDU(data=self.master_flat).writeto(save, overwrite=True)
+            self.write_cals_FITS(pyfits.PrimaryHDU(data=self.master_flat), filename=save)
 
 
     def make_master_comp(self, save=None):
@@ -119,17 +149,15 @@ class BenchSpek(object):
 
 
     def read_reference_linelist(self):
-        opt = self.config['linelist']
+        opt = self.config['linelistx']
+        linelist = []
         if (opt.endswith(".fits")):
             # read file, identify lines
-
-
-
+            self.logger.info("Reading line list from FITS file (%s)", opt)
+            self.logger.warning("NOT IMPLEMENTED")
             pass
         else:
             # read lines from file
-            linelist = []
-            self.logger.info("Reading line list from text file (%s)", opt)
             with open(opt, "r") as ll:
                 lines = ll.readlines()
                 for l in lines:
@@ -517,14 +545,14 @@ class BenchSpek(object):
         # self.flat_spectra = self.extract_spectra_raw(imgdata=self.master_flat, weights=self.master_flat)
         self.flat_spectra = self.raw_traces.extract_fiber_spectra(
             imgdata=self.master_flat, weights=self.master_flat)
-        print("flat_spectra.shape", self.flat_spectra.shape)
-        numpy.savetxt("flat_spectra2.dat", self.flat_spectra)
+        # print("flat_spectra.shape", self.flat_spectra.shape)
+        # numpy.savetxt("flat_spectra2.dat", self.flat_spectra)
 
         self.logger.info("Extracting fiber spectra from master comp")
         # self.comp_spectra = self.extract_spectra_raw(imgdata=self.master_comp, weights=self.master_flat)
         self.comp_spectra = self.raw_traces.extract_fiber_spectra(
             imgdata=self.master_comp, weights=self.master_flat)
-        numpy.savetxt("comp_spectra2.dat", self.comp_spectra)
+        # numpy.savetxt("comp_spectra2.dat", self.comp_spectra)
 
         self.read_reference_linelist()
 
@@ -535,9 +563,7 @@ class BenchSpek(object):
             make_plots=True
         )
         self.wavelength_solution = _wavelength_solution[-3:]
-        print("wavelength solution:", self.wavelength_solution)
-
-        sys.exit(0)
+        # print("wavelength solution:", self.wavelength_solution)
 
         # Now re-identify lines across all other fiber traces
         self.poly_transforms = self.reidentify_lines(
@@ -597,6 +623,9 @@ class BenchSpek(object):
         self.rect_traces.find_trace_fibers(self.flat_rectified_2d)
 
         self.get_fiber_flatfields()
+
+        sys.exit(0)
+
 
     def get_fiber_flatfields(self, filter_width=50):
         self.flat_fibers = self.rect_traces.extract_fiber_spectra(
