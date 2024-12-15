@@ -452,21 +452,32 @@ class BenchSpek(object):
         results = []
         # print(ref2d.shape)
 
-        for cw, disp in itertools.product(scan_wl, scan_disp):
-            wl = cw + (peaks2d - central_y) * disp
+        results_df = pandas.DataFrame()
+        for i_iter, (cw, disp) in enumerate(itertools.product(scan_wl, scan_disp)):
+
+            # for simple linear fit -- maybe not as good
+            # wl = cw + (peaks2d - central_y) * disp
+
+            # use the modified grating solution
+            wl_polyfit_mod = self.grating_solution.wl_polyfit.copy()
+            wl_polyfit_mod[-1] = cw
+            wl_polyfit_mod[-2] = disp
+            peaks0 = peaks2d - central_y
+            wl = numpy.polyval(wl_polyfit_mod, peaks0)
+
             # print(wl.shape)
             # break
 
             #
             # find matches based on simple solution
             #
-            d, i = ref_tree.query(wl, k=1, p=1, distance_upper_bound=4)
+            d, i = ref_tree.query(wl, k=1, p=1, distance_upper_bound=2)
             n_good_line_matches = numpy.sum(i < ref_tree.n)
 
             #
             # assume we correctly matched all matched lines, let's do a proper fit and recount matches
             #
-            testfit = [0, 0, 0]
+            testfit = numpy.array([0, 0, 0])
             if (n_good_line_matches >= min_lines):
                 match = (i < ref_tree.n)
                 # variance = numpy.var()
@@ -508,21 +519,30 @@ class BenchSpek(object):
                 var_wl = 999
 
             results.append([cw, disp, n_good_line_matches, n_good_line_matches2, var_wl, testfit[0], testfit[1], testfit[2]])
+            results_df.loc[i_iter, 'central_wavelength'] = cw
+            results_df.loc[i_iter, 'dispersion'] = disp
+            results_df.loc[i_iter, 'n_matches'] = n_good_line_matches
+            results_df.loc[i_iter, 'n_matches_refined'] = n_good_line_matches2
+            results_df.loc[i_iter, 'variance'] = var_wl
+            for _i in range(testfit.shape[0]):
+                results_df.loc[i_iter, 'polyfit_%d' % _i] = testfit[_i]
 
             # break
 
+        self.logger.debug("Done exploring all combinations of central wavelength & dispersion")
         results = numpy.array(results)
         numpy.savetxt("results.dump", results)
+        results_df.to_csv("wl_solution.results", index=False)
 
         i_most_matches = numpy.argmax(results[:, 3])
-        print(i_most_matches)
-        print("most matches", results[i_most_matches])
+        #print(i_most_matches)
+        #print("most matches", results[i_most_matches])
 
         all_best_matches = results[(results[:, 3] >= results[i_most_matches, 3])]
 
         i_smallest_scatter = numpy.argmin(all_best_matches[:, 4])
         best_solution = all_best_matches[i_smallest_scatter]
-        print(best_solution)
+        self.logger.info("found best solution: %s" % (str(best_solution)))
 
         # Now that we have the best solution, do a final match and make some plots
         best_fit = best_solution[-3:]
@@ -530,13 +550,40 @@ class BenchSpek(object):
         full_wl = numpy.polyval(best_fit, full_y-central_y)
         d2, i2 = ref_tree.query(wl_postfit, k=1, p=1, distance_upper_bound=2)
         matched = (i2 < ref_tree.n)
-        n_good_line_matches2 = numpy.sum(i2 < ref_tree.n)
-        ref_wl_refined = reflines[i2[i2 < ref_tree.n]]
-        fig, ax = plt.subplots()
-        #ax.scatter(wl_postfit[matched], ref_wl_refined)
-        ax.scatter(peaks[matched], ref_wl_refined)
-        ax.plot(full_y, full_wl, alpha=0.5)
-        fig.savefig("matched__wavelength_vs_pixel.png")
+        n_good_line_matches2 = numpy.sum(matched)
+        ref_wl_refined = reflines[i2[matched]]
+
+        self.matched_line_inventory = pandas.DataFrame()
+        print("peaks:", peaks.shape)
+        print("matched:", matched.shape)
+        print("ref_wl_refined:", ref_wl_refined.shape)
+
+        _pm = peaks[matched]
+        _rem = ref_wl_refined
+        print(_pm.shape, _rem.shape)
+        self.matched_line_inventory = pandas.DataFrame.from_dict({
+                'comp_spectrum_pixel': peaks[matched],
+                'reference_wl': ref_wl_refined
+            },
+            orient='columns',
+        )
+        #self.matched_line_inventory["comp_spectrum_pixel"] = peaks[matched]
+        #self.matched_line_inventory.loc[:, 'reference_wl'] = ref_wl_refined
+
+        self.logger.debug("Generating final reference plot")
+        # fig, axs = plt.subplots(nrows=2, figsize=(12, 8))
+        # #ax.scatter(wl_postfit[matched], ref_wl_refined)
+        # axs[0].scatter(peaks[matched], ref_wl_refined)
+        # axs[0].plot(full_y, full_wl, alpha=0.5)
+        #
+        # print(wl_postfit.shape, ref_wl_refined.shape)
+        # axs[1].scatter(wl_postfit[matched], ref_wl_refined-wl_postfit[matched])
+        # axs[1].axhline(y=0, ls=":")
+        # fig.savefig("matched__wavelength_vs_pixel.png")
+        # self.logger.debug("Plot saved to matched__wavelength_vs_pixel.png")
+
+        print(best_fit)
+        self.make_wavelength_calibration_overview_plot(spec, best_fit)
         return best_solution  # results[i_most_matches]
 
 
