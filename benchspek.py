@@ -104,9 +104,12 @@ class BenchSpek(object):
 
     def basic_reduction(self, filelist, bias=None, flat=None, op=numpy.mean):
         _list = []
+        header = None
         for fn in filelist:
             _fn = os.path.join(self.raw_dir, fn)
             hdulist = pyfits.open(_fn)
+            if (header is None):
+                header = hdulist[0].header
             data = hdulist[0].data.astype(float)
             if (bias is not None):
                 data -= bias
@@ -115,11 +118,11 @@ class BenchSpek(object):
             _list.append(data)
         stack = numpy.array(_list)
         combined = op(stack, axis=0)
-        return combined
+        return combined, header
 
     def make_master_bias(self, save=None):
         self.logger.info("Creating master bias")
-        self.master_bias = self.basic_reduction(
+        self.master_bias, _ = self.basic_reduction(
             filelist=self.config['bias'],
             bias=None, flat=None, op=numpy.median)
         print(self.master_bias.shape)
@@ -157,7 +160,7 @@ class BenchSpek(object):
 
     def make_master_comp(self, save=None):
         self.logger.info("Creating master comp")
-        self.master_comp = self.basic_reduction(
+        self.master_comp, self.comp_header = self.basic_reduction(
             filelist=self.config['comp'],
             bias=self.master_bias, flat=self.master_flat,
             op=numpy.median
