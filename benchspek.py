@@ -25,6 +25,16 @@ from specutils.manipulation import FluxConservingResampler, LinearInterpolatedRe
 
 import fibertraces
 from fibertraces import *
+def gauss(x, center, sigma, amplitude):
+    return amplitude * numpy.exp(-(x - center) ** 2 / sigma ** 2)
+
+
+def _fit_gauss(p, x, flux):
+    model = gauss(x, center=p[0], sigma=p[1], amplitude=p[2])
+    diff = model - flux
+    noise = 100
+    return (diff / noise) ** 2
+
 
 
 class BenchSpek(object):
