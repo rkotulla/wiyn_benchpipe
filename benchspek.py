@@ -352,12 +352,35 @@ class BenchSpek(object):
         if (dispersion is None):
             dispersion = self.get_config('setup', 'dispersion')
 
-        print("spec shape:", spec.shape)
+        # print("spec shape:", spec.shape)
+        self.logger.info("User solution: central wavelength: %.3f; dispersion: %.4f" % (lambda_central, dispersion))
 
-        # find peaks
-        contsub, peaks = self.find_lines(spec, threshold=1300, distance=5)
-        self.logger.info("Found %d peaks" % (peaks.shape[0]))
+        self.logger.info("Getting approximate wavelength solution from grating setup")
+        self.grating_solution = grating_from_header(self.comp_header)
+        self.logger.info("GRATING: central wavelength: %f" % (self.grating_solution.central_wavelength))
+        self.logger.info("GRATING: solution: %s" % (self.grating_solution.wl_polyfit))
+
+        lambda_central = self.grating_solution.central_wavelength
+        dispersion = self.grating_solution.wl_polyfit[-2]
+
+        # find peaks in the specified spectrum
+        contsub, peaks = self.find_lines(spec, threshold=500, distance=5)
+        self.comp_spectrum_raw = spec
+        self.comp_spectrum_continuumsub = contsub
+        self.comp_spectrum_lines = peaks
+
+        numpy.savetxt("spec_spec", spec)
+        numpy.savetxt("spec_peaks", peaks)
+        numpy.savetxt("spec_contsub", contsub)
+        self.logger.info("Found %d peaks in arc spectrum" % (peaks.shape[0]))
         full_y = numpy.arange(spec.shape[0])
+        full_y0 = full_y - spec.shape[0]/2
+        full_wl = numpy.polyval(self.grating_solution.wl_polyfit, full_y0)
+        peaks0 = peaks - spec.shape[0]/2
+        peaks_wl = numpy.polyval(self.grating_solution.wl_polyfit, peaks0)
+        self.comp_spectrum_full_y = full_y
+        self.comp_spectrum_full_y0 = full_y0
+        self.comp_spectrum_center_y = spec.shape[0]/2
 
         if (make_plots):
             fig, ax = plt.subplots(figsize=(13, 5))
