@@ -171,7 +171,7 @@ class BenchSpek(object):
         # print(self.comp_header)
         if (save is not None):
             self.logger.info("Writing master comp to %s", save)
-            pyfits.PrimaryHDU(data=self.master_comp).writeto(save, overwrite=True)
+            pyfits.PrimaryHDU(data=self.master_comp, header=self.comp_header).writeto(save, overwrite=True)
 
 
     def read_reference_linelist(self):
