@@ -25,6 +25,14 @@ from specutils.manipulation import FluxConservingResampler, LinearInterpolatedRe
 
 import fibertraces
 from fibertraces import *
+import warnings
+#with warnings.catch_warnings():
+print("Disabling warnings")
+warnings.filterwarnings('ignore', r'All-NaN (slice|axis) encountered')
+warnings.filterwarnings('ignore', r'divide by zero encountered in divide')
+warnings.filterwarnings('ignore', r'invalid value encountered in divide')
+warnings.simplefilter("ignore", RuntimeWarning)
+
 def gauss(x, center, sigma, amplitude):
     return amplitude * numpy.exp(-(x - center) ** 2 / sigma ** 2)
 
