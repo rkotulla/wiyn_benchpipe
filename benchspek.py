@@ -739,9 +739,15 @@ class BenchSpek(object):
         # self.comp_spectra = self.extract_spectra_raw(imgdata=self.master_comp, weights=self.master_flat)
         self.comp_spectra = self.raw_traces.extract_fiber_spectra(
             imgdata=self.master_comp, weights=self.master_flat)
-        # numpy.savetxt("comp_spectra2.dat", self.comp_spectra)
+        # print(self.comp_spectra)
+        numpy.savetxt("comp_spectra2.dat", self.comp_spectra)
 
-        self.read_reference_linelist()
+
+        # self.read_reference_linelist()
+        self.find_reflines_from_spec()
+        self.linelist.to_csv("reference_linelist_dummy.csv", index=False)
+
+                #self.grating_solution
 
         # find wavelength solution for one "reference" fiber
         self.ref_fiberid = 41
