@@ -165,7 +165,9 @@ class BenchSpek(object):
             bias=self.master_bias, flat=self.master_flat,
             op=numpy.median
         )
-        print(self.master_comp.shape)
+        self.logger.debug("MasterComp dimensions: %s" % (str(self.master_comp.shape)))
+        # print(self.master_comp.shape)
+        # print(self.comp_header)
         if (save is not None):
             self.logger.info("Writing master comp to %s", save)
             pyfits.PrimaryHDU(data=self.master_comp).writeto(save, overwrite=True)
@@ -399,6 +401,7 @@ class BenchSpek(object):
         self.comp_spectrum_center_y = spec.shape[0]/2
 
         if (make_plots):
+            self.logger.debug("Generating initial reference spectrum comparison")
             fig, ax = plt.subplots(figsize=(13, 5))
             ax.plot(full_y, contsub, lw=0.5)
             # ax.plot(wl, contsub, lw=0.5)
@@ -411,6 +414,7 @@ class BenchSpek(object):
             # ax.set_yscale('log')
             ax.set_ylim(0, 25000)
             fig.savefig("reference_spectrum.png", dpi=300)
+            self.logger.debug("Saved plot to reference_spectrum.png")
 
         # generate a tree for the reference lines
         in_window = (self.linelist['cal_center'] >= self.grating_solution.wl_blueedge) & \
@@ -1106,7 +1110,7 @@ class BenchSpek(object):
 if __name__ == '__main__':
 
     #    logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(filename)-15s [ %(funcName)-30s ] :: %(message)s')
 
     mpl_logger = logging.getLogger('matplotlib')
     mpl_logger.setLevel(logging.WARNING)
