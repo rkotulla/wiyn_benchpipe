@@ -12,6 +12,7 @@ import scipy
 import scipy.signal
 import scipy.ndimage
 import scipy.interpolate
+import scipy.optimize
 import sklearn
 import matplotlib.pyplot as plt
 import glob
