@@ -586,6 +586,69 @@ class BenchSpek(object):
         self.make_wavelength_calibration_overview_plot(spec, best_fit)
         return best_solution  # results[i_most_matches]
 
+    def make_wavelength_calibration_overview_plot(self, comp_spectrum, wavelength_solution):
+
+        fig, axs = plt.subplots(figsize=(15, 10), nrows=3, tight_layout=True)
+
+        #
+        # Compare/overlay reference and comp spectra
+        #
+        axs[0].plot(self.refspec_wavelength, self.refspec_smoothed / 1e5, lw=0.4, c='blue', label='ref')
+
+        # disp = -0.30
+        # cwl = 6568
+        # spec_wl = spec_x0 * disp + cwl
+        # wlpf = numpy.polyval(pf, spec_x0)
+
+
+        comp_wl = numpy.polyval(wavelength_solution, self.comp_spectrum_full_y0)
+        print("womp-wl:\n", comp_wl)
+        axs[0].plot(comp_wl, self.comp_spectrum_continuumsub / 8000, lw=0.4, c='orange', label='data')
+        #
+        peaks0 = self.comp_spectrum_lines - self.comp_spectrum_center_y
+        peaks_wl = numpy.polyval(wavelength_solution, peaks0)
+        # print(peaks_wl)
+        axs[0].scatter(peaks_wl, numpy.ones_like(peaks0) * 0.5, marker="|", c='orange')
+        #
+        axs[0].scatter(self.linelist['cal_center'], numpy.ones_like(self.linelist['center']) * 0.6, c='blue', marker="|")
+        # print(finelines['center'])
+        #
+        axs[0].set_xlim((6350, 6800))
+        axs[0].set_ylim((0, 1))
+        axs[0].legend()
+        axs[0].set_xlabel("wavelength [A]")
+        axs[0].set_ylabel("normalized flux")
+
+        #
+        # Plot wavelength vs pixel coordinate
+        #
+        comp_wl = numpy.polyval(wavelength_solution, self.comp_spectrum_full_y0)
+        # peaks_wl = numpy.polyval(wavelength_solution, peaks0)
+
+        self.matched_line_inventory.info()
+
+        axs[1].plot(self.comp_spectrum_full_y, comp_wl)
+        axs[1].scatter(self.comp_spectrum_lines, peaks_wl)
+        axs[1].set_xlabel("pixel position [pixel]")
+        axs[1].set_ylabel("wavelength [A]")
+
+        #
+        # Deviations/residuals from perfect fit
+        #
+        comp_pixel_0 = self.matched_line_inventory['comp_spectrum_pixel'] - self.comp_spectrum_center_y
+        comp_wl = numpy.polyval(wavelength_solution, comp_pixel_0)
+        ref_wl = self.matched_line_inventory['reference_wl']
+
+        # print(final_spec_wl.shape)
+        # print(ref_wl_refined.shape)
+        axs[2].scatter(ref_wl, ref_wl - comp_wl)
+        axs[2].axhline(y=0)
+        axs[2].set_xlabel("Wavelength [A]")
+        axs[2].set_ylabel("Difference Reference - Calibrated [A]")
+        plot_fn = "wavelength_solution_details.png"
+        fig.savefig(plot_fn)
+        self.logger.debug("Plot saved to %s" % (plot_fn))
+
 
     def reidentify_lines(self, comp_spectra, ref_fiberid=41, make_plots=False):
         ##################################
