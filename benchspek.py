@@ -186,9 +186,22 @@ class BenchSpek(object):
                 for l in lines:
                     wl = float(l.strip().split(" ")[0])
                     linelist.append(wl)
-            self.linelist = numpy.array(linelist)
+            linelist = numpy.array(linelist)
         self.logger.info("Found %d reference lines for wavelength calibration",
-                         self.linelist.shape[0])
+                         linelist.shape[0])
+
+        fine_linelist = pandas.DataFrame()
+        fine_linelist['peak_pos'] = self.linelist
+        fine_linelist['center'] = self.linelist
+        fine_linelist['sigma'] = 1.0
+        fine_linelist['peak_pos'] = 1.0
+
+        # all positions read from file are already converted to actual calibrated wavelengths
+        fine_linelist['cal_peak_pos'] = fine_linelist['peak_pos']
+        fine_linelist['cal_center'] = fine_linelist['center']
+
+        self.linelist = fine_linelist
+
         return self.linelist
 
     def find_lines(self, spec, threshold=1300, distance=5):
@@ -400,7 +413,26 @@ class BenchSpek(object):
             fig.savefig("reference_spectrum.png", dpi=300)
 
         # generate a tree for the reference lines
-        reflines = self.linelist
+        in_window = (self.linelist['cal_center'] >= self.grating_solution.wl_blueedge) & \
+                    (self.linelist['cal_center'] <= self.grating_solution.wl_rededge)
+        selected_list = self.linelist[in_window]
+        # selected_list.info()
+        reflines = selected_list['cal_center'].reset_index(drop=True)
+        self.logger.info("Found %s calibrated reference lines" % (str(reflines.shape)))
+
+        if (True):
+            fig, ax = plt.subplots(figsize=(13, 5))
+            ax.plot(full_wl, contsub, lw=0.5)
+            # ax.plot(wl, contsub, lw=0.5)
+            ylabelpos = 20000
+            for p in peaks_wl:
+                ax.axvline(x=p, ymin=0.0, ymax=0.8, lw=0.2, color='red', alpha=0.5)
+                ax.text(p, ylabelpos, "%d" % (p), rotation='vertical', ha='center')
+            ax.scatter(reflines, numpy.ones_like(reflines)*2500, marker="|")
+            # ax.set_yscale('log')
+            ax.set_ylim(0, 25000)
+            fig.savefig("reference_spectrum_wlcal.png", dpi=300)
+
         ref2d = numpy.array([reflines, reflines]).T
         # print(ref2d.shape)
         ref_tree = scipy.spatial.KDTree(
