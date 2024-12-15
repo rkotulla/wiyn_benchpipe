@@ -25,6 +25,8 @@ from specutils.manipulation import FluxConservingResampler, LinearInterpolatedRe
 
 import fibertraces
 from fibertraces import *
+from grating import *
+
 import warnings
 #with warnings.catch_warnings():
 print("Disabling warnings")
@@ -196,6 +198,52 @@ class BenchSpek(object):
         # min_peak_height = 300
         peaks, peak_props = scipy.signal.find_peaks(contsub, height=threshold, distance=distance)
         return contsub, peaks
+
+    def fine_line_centroiding(self, spec, line_pos):
+        # print(spec.shape)
+        # print(line_pos)
+
+        fig, ax = plt.subplots(figsize=(14, 4))
+        x = numpy.arange(spec.shape[0])
+        ax.plot(x, spec, lw=0.5)
+        # ax.set_xlim((x1,x2))
+        ax.set_xlim((10e3, 12e3))
+        ax.set_ylim((0, 1e5))
+
+        # in_window = (line_pos > x1) & (line_pos<x2)
+        # line_pos = line_pos[in_window]
+
+        peak_flux = spec[line_pos]
+        ax.scatter(line_pos, peak_flux + 3e3, marker="|")
+
+        window_size = 5
+        fine_lines = pandas.DataFrame()  # numpy.full((line_pos.shape[0],5), numpy.nan)
+        for i, line in enumerate(line_pos):
+            _left = int(numpy.floor(line - window_size))
+            _right = int(numpy.ceil(line + window_size))
+            w_x = x[_left:_right + 1]
+            w_spec = spec[_left:_right + 1]
+            weighted = numpy.sum(w_x * w_spec) / numpy.sum(w_spec)
+
+            # fine_lines[i,1] = weighted
+            ax.axvline(x=weighted, lw=0.2)
+
+            fit_results = scipy.optimize.leastsq(
+                func=_fit_gauss,
+                x0=[line, 3, peak_flux[i]],
+                args=(w_x, w_spec)
+            )
+            # print(line, weighted, fit_results[0])
+
+            m_gauss = gauss(w_x, fit_results[0][0], fit_results[0][1], fit_results[0][2])
+            ax.plot(w_x, m_gauss)
+
+            fine_lines.loc[i, 'peak_pos'] = line
+            fine_lines.loc[i, 'center'] = fit_results[0][0]
+            fine_lines.loc[i, 'sigma'] = fit_results[0][1]
+            fine_lines.loc[i, 'amplitude'] = fit_results[0][2]
+
+        return fine_lines
 
     def find_wavelength_solution(self, spec, lambda_central=None, dispersion=None, min_lines=3, make_plots=True):
 
