@@ -245,6 +245,104 @@ class BenchSpek(object):
 
         return fine_lines
 
+        # ax.scatter(fine_lines, numpy.ones_like(line_pos)*23e3, marker="|")
+
+
+    def find_reflines_from_spec(self, ref_spec_fn=None):
+
+        if (ref_spec_fn is None):
+            ref_spec_fn = "scidoc2212.fits"
+        self.logger.debug("Reading wavelength reference spectrum from %s" % (ref_spec_fn))
+        hdu = pyfits.open(ref_spec_fn)
+        s = hdu[0].data
+        # hdu.info()
+        # hdu[0].header
+        fig, ax = plt.subplots(figsize=(13, 4))
+        _x = numpy.arange(s.shape[0], dtype=float) + 1.
+        _l = (_x - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
+
+        threshold = 5000
+        contsub, reflines = self.find_lines(s, threshold=threshold, distance=10)
+        # print(reflines)
+        # refpeaks, props = scipy.signal.find_peaks(s, height=5000, distance=30)
+        refpeaks_wl = (reflines - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
+
+        self.refspec_raw = hdu[0].data
+        self.refspec_continnum_subtracted = contsub
+        self.refspec_wavelength = _l
+
+        widths, _, _, _ = scipy.signal.peak_widths(contsub, reflines)
+        # print(linewidths)
+        good_width = numpy.isfinite(widths) & (reflines > 6300) & (reflines < 6900)
+        for _iter in range(3):
+            stats = numpy.nanpercentile(widths[good_width], [16, 50, 84])
+            _med = stats[1]
+            _sigma = 0.5 * (stats[2] - stats[0])
+            good_width = good_width & (widths < (_med + 3 * _sigma)) & (widths > (_med - 3 * _sigma))
+        med_ref_width = numpy.nanmedian(widths[good_width])
+        self.logger.debug("reference spectrum line width: %.4f pixels ==> %.4f AA" % (
+            med_ref_width, (med_ref_width * hdu[0].header['CD1_1'])))
+        # self.logger.debug("reference spectrum line width: %.4f AA" % )
+
+        sci_dispersion = 0.31
+        med_width = 3.3
+        sci_sigma = med_width * sci_dispersion / 2.634
+        ref_dispersion = hdu[0].header['CD1_1']
+        ref_sigma = med_ref_width * ref_dispersion / 2.634
+        self.logger.debug("Comparing instrumental resolutions: data:%fAA reference:%fAA" % (sci_sigma, ref_sigma))
+
+        if (sci_sigma <= ref_sigma):
+            smooth_sigma = None
+            smooth_px_width = None
+            self.logger.debug("Data is higher resolution than reference, no reference smoothing needed")
+            smoothed = contsub.copy()
+        else:
+            smooth_sigma = numpy.sqrt(sci_sigma ** 2 - ref_sigma ** 2)
+            smooth_px_sigma = smooth_sigma / ref_dispersion
+            self.logger.debug("smoothing needed: sigma=%fAA ==> %.2fpx" % (smooth_sigma, smooth_px_sigma))
+            smoothed = scipy.ndimage.gaussian_filter1d(contsub, sigma=smooth_px_sigma)
+        numpy.savetxt("refspec_smoothed", smoothed)
+        numpy.savetxt("refspec_contsub", contsub)
+        # print(type(refpeaks_wl))
+        # print(refpeaks_wl)
+
+        self.refspec_smoothed = smoothed
+
+        self.logger.debug("Creating diagnostic plot")
+        ax.plot(_l, contsub, lw=0.2, label='contsub')
+        ax.plot(_l, smoothed, lw=0.5, c='red', label='smoothed')
+        # ax.scatter(_l, contsub, s=0.2)
+        ax.set_xlim((6350, 6680))
+        ax.set_ylim((0, 2e4))
+
+        ax.set_xlim((6500, 6600))
+        ax.set_xlim((6000, 7000))
+        ax.set_ylim((0, 5e4))
+
+        # sel_wl = refpeaks_wl[(refpeaks_wl > 6350) & (refpeaks_wl < 6480) ]
+        sel_wl = refpeaks_wl
+        ax.scatter(sel_wl, numpy.ones_like(sel_wl) * 15000, marker="|", label="lines (thr=%g)" % (threshold))
+        ax.axhline(y=threshold)
+        ax.legend()
+        #plot_fn =
+        fig.savefig("refspec_caliblines.png", dpi=300)
+        fig.savefig("refspec_caliblines.pdf")
+        self.logger.debug("Saving plot to refspec_caliblines.(pdf/png)")
+
+        self.logger.debug("Refining positions by centroiding")
+        fine_lines = self.fine_line_centroiding(spec=smoothed, line_pos=reflines)
+
+        fine_lines['cal_peak_pos'] = (fine_lines['peak_pos'] - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
+        fine_lines['cal_center'] = (fine_lines['center'] - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
+        fine_lines.to_csv("fine_lines.csv", index=False)
+        self.linelist = fine_lines
+        self.logger.debug("Extracted a total of %d reference lines in (range %.2f .. %.2f) AA" % (
+            len(fine_lines.index), numpy.min(fine_lines['cal_center']), numpy.max(fine_lines['center'])))
+        return fine_lines
+
+        # print(sel_wl)
+        # ax.axvline(sel_wl) #, ymin=0.4, ymax=1.)
+
     def find_wavelength_solution(self, spec, lambda_central=None, dispersion=None, min_lines=3, make_plots=True):
 
         self.logger.info("Finding wavelength solution")
