@@ -591,7 +591,7 @@ class BenchSpek(object):
         self.make_wavelength_calibration_overview_plot(spec, best_fit)
         return best_solution  # results[i_most_matches]
 
-    def make_wavelength_calibration_overview_plot(self, comp_spectrum, wavelength_solution):
+    def make_wavelength_calibration_overview_plot(self, comp_spectrum, wavelength_solution, plot_fn=None, used_in_fit=None):
 
         fig, axs = plt.subplots(figsize=(15, 10), nrows=3, tight_layout=True)
 
@@ -627,30 +627,48 @@ class BenchSpek(object):
         #
         # Plot wavelength vs pixel coordinate
         #
-        comp_wl = numpy.polyval(wavelength_solution, self.comp_spectrum_full_y0)
+        matched_comp_px_raw = self.matched_line_inventory['comp_spectrum_pixel']
+        matched_comp_px = matched_comp_px_raw - self.comp_spectrum_center_y
+        matched_ref_wl = self.matched_line_inventory['reference_wl']
+        matched_comp_wl = numpy.polyval(wavelength_solution, matched_comp_px)
+        if (used_in_fit is None):
+            used_in_fit = numpy.isfinite(matched_comp_wl)
+            print("Assuming all points were used_in_fit")
+        comp_wl_full = numpy.polyval(wavelength_solution, self.comp_spectrum_full_y0)
         # peaks_wl = numpy.polyval(wavelength_solution, peaks0)
 
-        self.matched_line_inventory.info()
+        #self.matched_line_inventory.info()
 
-        axs[1].plot(self.comp_spectrum_full_y, comp_wl)
-        axs[1].scatter(self.comp_spectrum_lines, peaks_wl)
-        axs[1].set_xlabel("pixel position [pixel]")
-        axs[1].set_ylabel("wavelength [A]")
+        axs[1].plot(comp_wl, self.comp_spectrum_full_y)
+        axs[1].scatter(matched_ref_wl[used_in_fit], matched_comp_px_raw[used_in_fit], c='green')
+        axs[1].scatter(matched_ref_wl[~used_in_fit], matched_comp_px_raw[~used_in_fit], c='red')
+        axs[1].set_ylabel("pixel position [pixel]")
+        axs[1].set_xlabel("wavelength [A]")
+        axs[1].set_xlim((6350, 6800))
 
         #
         # Deviations/residuals from perfect fit
         #
-        comp_pixel_0 = self.matched_line_inventory['comp_spectrum_pixel'] - self.comp_spectrum_center_y
-        comp_wl = numpy.polyval(wavelength_solution, comp_pixel_0)
-        ref_wl = self.matched_line_inventory['reference_wl']
+        #comp_pixel_0 = self.matched_line_inventory['comp_spectrum_pixel'] - self.comp_spectrum_center_y
+        #comp_wl = numpy.polyval(wavelength_solution, comp_pixel_0)
+        #ref_wl = self.matched_line_inventory['reference_wl']
 
         # print(final_spec_wl.shape)
         # print(ref_wl_refined.shape)
-        axs[2].scatter(ref_wl, ref_wl - comp_wl)
+        #print("REF-WL", len(ref_wl.index))
+        #print("COMP WL ", comp_wl.shape)
+        #print("USED4FIT", used_in_fit.shape)
+        axs[2].scatter(matched_ref_wl[used_in_fit], (matched_ref_wl - matched_comp_wl)[used_in_fit], c='green')
+        fake_zero = numpy.zeros_like(matched_ref_wl)
+        axs[2].scatter(matched_ref_wl[~used_in_fit], fake_zero[~used_in_fit], c='red', facecolors='none')
+        # axs[2].scatter(ref_wl, ref_wl - comp_wl)
         axs[2].axhline(y=0)
         axs[2].set_xlabel("Wavelength [A]")
         axs[2].set_ylabel("Difference Reference - Calibrated [A]")
-        plot_fn = "wavelength_solution_details.png"
+        axs[2].set_xlim((6350, 6800))
+
+        if (plot_fn is None):
+            plot_fn = "wavelength_solution_details.png"
         fig.savefig(plot_fn)
         self.logger.debug("Plot saved to %s" % (plot_fn))
 
