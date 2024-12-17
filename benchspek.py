@@ -384,12 +384,14 @@ class BenchSpek(object):
 
         # find peaks in the specified spectrum
         contsub, peaks = self.find_lines(spec, threshold=500, distance=5)
+        peaks_fine = self.fine_line_centroiding(spec=contsub, line_pos=peaks)
         self.comp_spectrum_raw = spec
         self.comp_spectrum_continuumsub = contsub
         self.comp_spectrum_lines = peaks
 
         numpy.savetxt("spec_spec", spec)
         numpy.savetxt("spec_peaks", peaks)
+        numpy.savetxt("spec_peaks_fine", peaks_fine)
         numpy.savetxt("spec_contsub", contsub)
         self.logger.info("Found %d peaks in arc spectrum" % (peaks.shape[0]))
         full_y = numpy.arange(spec.shape[0])
