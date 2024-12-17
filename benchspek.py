@@ -551,6 +551,9 @@ class BenchSpek(object):
 
         # Now that we have the best solution, do a final match and make some plots
         best_fit = best_solution[-3:]
+
+        fit_order = 5
+
         wl_postfit = numpy.polyval(best_fit, peaks2d - central_y)
         full_wl = numpy.polyval(best_fit, full_y-central_y)
         d2, i2 = ref_tree.query(wl_postfit, k=1, p=1, distance_upper_bound=2)
@@ -563,17 +566,41 @@ class BenchSpek(object):
         print("matched:", matched.shape)
         print("ref_wl_refined:", ref_wl_refined.shape)
 
+        self.matched_line_inventory = pandas.DataFrame.from_dict({
+            'comp_spectrum_pixel': peaks[matched],
+            'reference_wl': ref_wl_refined
+        },
+            orient='columns',
+        )
+
+        comp_peaks_px = peaks[matched] - self.comp_spectrum_center_y
+        use_in_final_fit = numpy.isfinite(ref_wl_refined)
+        print("USE IN FIT", use_in_final_fit.shape)
+        plot_fn = "wavelength_solution_details_initial.png"
+        self.make_wavelength_calibration_overview_plot(spec, best_fit, plot_fn=plot_fn)
+        for iteration in range(5):
+            # now we have line positions in pixels and wavelength in A, let's fit
+            polyfit = numpy.polyfit(x=comp_peaks_px[use_in_final_fit],
+                                    y=ref_wl_refined[use_in_final_fit],
+                                    deg=fit_order)
+            fit_wl = numpy.polyval(polyfit, comp_peaks_px)
+
+            delta_wl = ref_wl_refined - fit_wl
+            stats = numpy.nanpercentile(delta_wl[use_in_final_fit], [16,50,84])
+            _median = stats[1]
+            _sigma = 0.5*(stats[2]-stats[0])
+            outlier = (delta_wl < (_median-3*_sigma)) | (delta_wl > (_median+3*_sigma))
+            use_in_final_fit[outlier] = False
+
+            _pm = peaks[matched]
+            _rem = ref_wl_refined
+            print(_pm.shape, _rem.shape)
+            plot_fn = "wavelength_solution_details_iteration%0d.png" % (iteration+1)
+            self.make_wavelength_calibration_overview_plot(spec, polyfit, plot_fn=plot_fn, used_in_fit=use_in_final_fit)
+
         _pm = peaks[matched]
         _rem = ref_wl_refined
         print(_pm.shape, _rem.shape)
-        self.matched_line_inventory = pandas.DataFrame.from_dict({
-                'comp_spectrum_pixel': peaks[matched],
-                'reference_wl': ref_wl_refined
-            },
-            orient='columns',
-        )
-        #self.matched_line_inventory["comp_spectrum_pixel"] = peaks[matched]
-        #self.matched_line_inventory.loc[:, 'reference_wl'] = ref_wl_refined
 
         self.logger.debug("Generating final reference plot")
         # fig, axs = plt.subplots(nrows=2, figsize=(12, 8))
@@ -588,7 +615,7 @@ class BenchSpek(object):
         # self.logger.debug("Plot saved to matched__wavelength_vs_pixel.png")
 
         print(best_fit)
-        self.make_wavelength_calibration_overview_plot(spec, best_fit)
+        self.make_wavelength_calibration_overview_plot(spec, best_fit)#, used_in_fit=use_in_final_fit)
         return best_solution  # results[i_most_matches]
 
     def make_wavelength_calibration_overview_plot(self, comp_spectrum, wavelength_solution, plot_fn=None, used_in_fit=None):
