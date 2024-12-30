@@ -1163,13 +1163,11 @@ class BenchSpek(object):
 
 
         # self.read_reference_linelist()
-        self.find_reflines_from_spec()
-        self.linelist.to_csv("reference_linelist_dummy.csv", index=False)
 
-                #self.grating_solution
+        # extract lines for reference spectrum
+        self.ref_fiberid = 41
 
         # find wavelength solution for one "reference" fiber
-        self.ref_fiberid = 41
         _wavelength_solution = self.find_wavelength_solution(
             self.comp_spectra[self.ref_fiberid],
             make_plots=True
