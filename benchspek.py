@@ -267,7 +267,6 @@ class BenchSpek(object):
         # ax.scatter(fine_lines, numpy.ones_like(line_pos)*23e3, marker="|")
 
 
-    def find_reflines_from_spec(self, ref_spec_fn=None):
     def get_refined_lines_from_spectrum(self, spec, distance=5, window_size=8, filter=True, return_contsub=False):
         # find a background approximation for the spectrum
         mins = scipy.ndimage.minimum_filter(input=spec, size=20, mode='constant', cval=0)
@@ -422,6 +421,8 @@ class BenchSpek(object):
             contsub = spec - cont
             return line_inventory, contsub
         return line_inventory
+
+    def find_reflines_from_spec(self, ref_spec_fn=None, sci_sigma=None, wl_min=None, wl_max=None):
 
         if (ref_spec_fn is None):
             ref_spec_fn = "scidoc2212.fits"
