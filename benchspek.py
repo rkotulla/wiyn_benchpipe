@@ -833,12 +833,20 @@ class BenchSpek(object):
 
     def make_wavelength_calibration_overview_plot(self, comp_spectrum, wavelength_solution, plot_fn=None, used_in_fit=None):
 
-        fig, axs = plt.subplots(figsize=(15, 10), nrows=3, tight_layout=True)
+        fig, axs = plt.subplots(figsize=(25, 10), nrows=3, tight_layout=True)
+
+        wl_min = self.grating_solution.wl_blueedge
+        wl_max = self.grating_solution.wl_rededge
+        wl_diff = wl_max - wl_min
+        wl_min -= 0.05*wl_diff
+        wl_max += 0.05*wl_diff
 
         #
         # Compare/overlay reference and comp spectra
         #
-        axs[0].plot(self.refspec_wavelength, self.refspec_smoothed / 1e5, lw=0.4, c='blue', label='ref')
+        ref_line_amps = numpy.nanpercentile(self.ref_inventory['gauss_amp'], [16,50,84])
+        typical_ref_line_amp = ref_line_amps[2]
+        axs[0].plot(self.refspec_wavelength, self.spec_scale(self.refspec_smoothed / typical_ref_line_amp), lw=0.4, c='blue', label='ref')
 
         # disp = -0.30
         # cwl = 6568
@@ -848,17 +856,20 @@ class BenchSpek(object):
 
         comp_wl = numpy.polyval(wavelength_solution, self.comp_spectrum_full_y0)
         print("womp-wl:\n", comp_wl)
-        axs[0].plot(comp_wl, self.comp_spectrum_continuumsub / 8000, lw=0.4, c='orange', label='data')
+        comp_line_amps = numpy.nanpercentile(self.comp_line_inventory['gauss_amp'], [16,50,84])
+        typical_comp_line_amp = comp_line_amps[2]
+        self.logger.info("Spec scaling: ref:%f  comp:%f" % (typical_ref_line_amp, typical_comp_line_amp))
+        axs[0].plot(comp_wl, self.spec_scale(self.comp_spectrum_continuumsub / typical_comp_line_amp), lw=0.4, c='orange', label='data')
         #
         peaks0 = self.comp_spectrum_lines - self.comp_spectrum_center_y
         peaks_wl = numpy.polyval(wavelength_solution, peaks0)
         # print(peaks_wl)
         axs[0].scatter(peaks_wl, numpy.ones_like(peaks0) * 0.5, marker="|", c='orange')
         #
-        axs[0].scatter(self.linelist['cal_center'], numpy.ones_like(self.linelist['center']) * 0.6, c='blue', marker="|")
+        axs[0].scatter(self.ref_inventory['gauss_wl'], numpy.ones_like(self.ref_inventory['gauss_center']) * 0.6, c='blue', marker="|")
         # print(finelines['center'])
         #
-        axs[0].set_xlim((6350, 6800))
+        axs[0].set_xlim((wl_min, wl_max))
         axs[0].set_ylim((0, 1))
         axs[0].legend()
         axs[0].set_xlabel("wavelength [A]")
@@ -884,7 +895,7 @@ class BenchSpek(object):
         axs[1].scatter(matched_ref_wl[~used_in_fit], matched_comp_px_raw[~used_in_fit], c='red')
         axs[1].set_ylabel("pixel position [pixel]")
         axs[1].set_xlabel("wavelength [A]")
-        axs[1].set_xlim((6350, 6800))
+        axs[1].set_xlim((wl_min, wl_max))
 
         #
         # Deviations/residuals from perfect fit
@@ -905,7 +916,7 @@ class BenchSpek(object):
         axs[2].axhline(y=0)
         axs[2].set_xlabel("Wavelength [A]")
         axs[2].set_ylabel("Difference Reference - Calibrated [A]")
-        axs[2].set_xlim((6350, 6800))
+        axs[2].set_xlim((wl_min, wl_max))
 
         if (plot_fn is None):
             plot_fn = "wavelength_solution_details.png"
