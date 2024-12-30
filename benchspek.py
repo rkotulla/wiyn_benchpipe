@@ -435,19 +435,33 @@ class BenchSpek(object):
         _x = numpy.arange(s.shape[0], dtype=float) + 1.
         _l = (_x - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
 
-        threshold = 5000
-        contsub, reflines = self.find_lines(s, threshold=threshold, distance=10)
-        # print(reflines)
-        # refpeaks, props = scipy.signal.find_peaks(s, height=5000, distance=30)
-        refpeaks_wl = (reflines - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
+        ref_inventory, contsub = self.get_refined_lines_from_spectrum(spec=s, return_contsub=True)
+
+        # threshold = 5000
+        # contsub, reflines = self.find_lines(s, threshold=threshold, distance=10)
+        # # print(reflines)
+        # # refpeaks, props = scipy.signal.find_peaks(s, height=5000, distance=30)
+        # reflines = ref_inventory['gauss_center'].to_numpy()
+        # refpeaks_wl = (reflines - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
+        ref_inventory['gauss_wl'] = (ref_inventory['gauss_center'] - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
+
+        # trim down lines to approximately the observed range
+        keepers = numpy.isfinite(ref_inventory['gauss_wl'])
+        if (wl_min is not None):
+            keepers[ref_inventory['gauss_wl'] < wl_min] = False
+        if (wl_max is not None):
+            keepers[ref_inventory['gauss_wl'] > wl_max] = False
+        ref_inventory = ref_inventory[keepers]
 
         self.refspec_raw = hdu[0].data
         self.refspec_continnum_subtracted = contsub
         self.refspec_wavelength = _l
 
-        widths, _, _, _ = scipy.signal.peak_widths(contsub, reflines)
+        # widths, _, _, _ = scipy.signal.peak_widths(contsub, reflines)
+        widths = ref_inventory['gauss_width'].to_numpy()
+        reflines = ref_inventory['gauss_center'].to_numpy()
         # print(linewidths)
-        good_width = numpy.isfinite(widths) & (reflines > 6300) & (reflines < 6900)
+        good_width = numpy.isfinite(widths) # & (reflines > 6300) & (reflines < 6900)
         for _iter in range(3):
             stats = numpy.nanpercentile(widths[good_width], [16, 50, 84])
             _med = stats[1]
@@ -460,7 +474,8 @@ class BenchSpek(object):
 
         sci_dispersion = 0.31
         med_width = 3.3
-        sci_sigma = med_width * sci_dispersion / 2.634
+        if (sci_sigma is None):
+            sci_sigma = med_width * sci_dispersion / 2.634
         ref_dispersion = hdu[0].header['CD1_1']
         ref_sigma = med_ref_width * ref_dispersion / 2.634
         self.logger.debug("Comparing instrumental resolutions: data:%fAA reference:%fAA" % (sci_sigma, ref_sigma))
@@ -494,25 +509,41 @@ class BenchSpek(object):
         ax.set_ylim((0, 5e4))
 
         # sel_wl = refpeaks_wl[(refpeaks_wl > 6350) & (refpeaks_wl < 6480) ]
-        sel_wl = refpeaks_wl
-        ax.scatter(sel_wl, numpy.ones_like(sel_wl) * 15000, marker="|", label="lines (thr=%g)" % (threshold))
-        ax.axhline(y=threshold)
+        # TODO: fix
+        threshold = 5000
+        sel_wl = ref_inventory['gauss_wl']
+        ax.scatter(sel_wl, ref_inventory['gauss_amp'], marker="|", label="lines") # (thr=%g)" % (threshold))
+        #ax.axhline(y=threshold)
         ax.legend()
         #plot_fn =
         fig.savefig("refspec_caliblines.png", dpi=300)
         fig.savefig("refspec_caliblines.pdf")
         self.logger.debug("Saving plot to refspec_caliblines.(pdf/png)")
 
-        self.logger.debug("Refining positions by centroiding")
-        fine_lines = self.fine_line_centroiding(spec=smoothed, line_pos=reflines)
+        # self.logger.debug("Refining positions by centroiding")
+        # fine_lines = self.fine_line_centroiding(spec=smoothed, line_pos=reflines)
+        #
+        # fine_lines['cal_peak_pos'] = (fine_lines['peak_pos'] - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
+        # fine_lines['cal_center'] = (fine_lines['center'] - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
+        # fine_lines.to_csv("fine_lines.csv", index=False)
+        # self.linelist = fine_lines
+        # self.logger.debug("Extracted a total of %d reference lines in (range %.2f .. %.2f) AA" % (
+        #     len(fine_lines.index), numpy.min(fine_lines['cal_center']), numpy.max(fine_lines['center'])))
+        # return fine_lines
 
-        fine_lines['cal_peak_pos'] = (fine_lines['peak_pos'] - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
-        fine_lines['cal_center'] = (fine_lines['center'] - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
-        fine_lines.to_csv("fine_lines.csv", index=False)
-        self.linelist = fine_lines
-        self.logger.debug("Extracted a total of %d reference lines in (range %.2f .. %.2f) AA" % (
-            len(fine_lines.index), numpy.min(fine_lines['cal_center']), numpy.max(fine_lines['center'])))
-        return fine_lines
+        # Repeat line extraction etc, now that we have a resolution-matched reference spectrum
+        ref_inventory = self.get_refined_lines_from_spectrum(spec=smoothed) #, return_contsub=True)
+        ref_inventory['gauss_wl'] = (ref_inventory['gauss_center'] - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
+
+        # trim down lines to approximately the observed range
+        keepers = numpy.isfinite(ref_inventory['gauss_wl'])
+        if (wl_min is not None):
+            keepers[ref_inventory['gauss_wl'] < wl_min] = False
+        if (wl_max is not None):
+            keepers[ref_inventory['gauss_wl'] > wl_max] = False
+        ref_inventory = ref_inventory[keepers]
+        self.ref_inventory = ref_inventory
+        return ref_inventory
 
         # print(sel_wl)
         # ax.axvline(sel_wl) #, ymin=0.4, ymax=1.)
@@ -534,19 +565,44 @@ class BenchSpek(object):
         self.logger.info("GRATING: central wavelength: %f" % (self.grating_solution.central_wavelength))
         self.logger.info("GRATING: solution: %s" % (self.grating_solution.wl_polyfit))
 
+        # comp_inventory = self.get_refined_lines_from_spectrum(spec)
+        # # get linewidth
+        # line_width_px = numpy.nanmedian(comp_inventory['gauss_width'])
+        # self.find_reflines_from_spec(comp_inventory)
+        # self.linelist.to_csv("reference_linelist_dummy.csv", index=False)
+
+                #self.grating_solution
+
+
         lambda_central = self.grating_solution.central_wavelength
         dispersion = self.grating_solution.wl_polyfit[-2]
 
         # find peaks in the specified spectrum
-        contsub, peaks = self.find_lines(spec, threshold=500, distance=5)
-        peaks_fine = self.fine_line_centroiding(spec=contsub, line_pos=peaks)
+        # contsub, peaks = self.find_lines(spec, threshold=500, distance=5)
+        # peaks_fine = self.fine_line_centroiding(spec=contsub, line_pos=peaks)
+        self.comp_line_inventory, contsub = self.get_refined_lines_from_spectrum(spec, return_contsub=True)
+        self.comp_line_inventory.to_csv("inventory_comp.csv", index=False)
+        peaks = self.comp_line_inventory['gauss_center'].to_numpy()
         self.comp_spectrum_raw = spec
         self.comp_spectrum_continuumsub = contsub
         self.comp_spectrum_lines = peaks
 
+        # find typical linewidth
+        line_width_px = numpy.nanmedian(self.comp_line_inventory['gauss_width'])
+        line_width_AA = line_width_px * dispersion
+
+        # now extract reference lines, after matching resolution to that of the
+        # data we are about to calibrate
+        self.find_reflines_from_spec(
+            sci_sigma=line_width_AA,
+            wl_min=self.grating_solution.wl_blueedge,
+            wl_max=self.grating_solution.wl_rededge
+        )
+        self.ref_inventory.to_csv("inventory_refspec.csv", index=False)
+
         numpy.savetxt("spec_spec", spec)
         numpy.savetxt("spec_peaks", peaks)
-        numpy.savetxt("spec_peaks_fine", peaks_fine)
+        # numpy.savetxt("spec_peaks_fine", peaks_fine)
         numpy.savetxt("spec_contsub", contsub)
         self.logger.info("Found %d peaks in arc spectrum" % (peaks.shape[0]))
         full_y = numpy.arange(spec.shape[0])
@@ -575,11 +631,11 @@ class BenchSpek(object):
             self.logger.debug("Saved plot to reference_spectrum.png")
 
         # generate a tree for the reference lines
-        in_window = (self.linelist['cal_center'] >= self.grating_solution.wl_blueedge) & \
-                    (self.linelist['cal_center'] <= self.grating_solution.wl_rededge)
-        selected_list = self.linelist[in_window]
+        in_window = (self.ref_inventory['gauss_wl'] >= self.grating_solution.wl_blueedge) & \
+                    (self.ref_inventory['gauss_wl'] <= self.grating_solution.wl_rededge)
+        selected_list = self.ref_inventory[in_window]
         # selected_list.info()
-        reflines = selected_list['cal_center'].reset_index(drop=True)
+        reflines = selected_list['gauss_wl'].reset_index(drop=True).to_numpy()
         self.logger.info("Found %s calibrated reference lines" % (str(reflines.shape)))
 
         if (True):
