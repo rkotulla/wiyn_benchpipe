@@ -268,6 +268,160 @@ class BenchSpek(object):
 
 
     def find_reflines_from_spec(self, ref_spec_fn=None):
+    def get_refined_lines_from_spectrum(self, spec, distance=5, window_size=8, filter=True, return_contsub=False):
+        # find a background approximation for the spectrum
+        mins = scipy.ndimage.minimum_filter(input=spec, size=20, mode='constant', cval=0)
+        cont = scipy.ndimage.gaussian_filter1d(input=mins, sigma=10)
+
+        # prepare dataframe for the results
+        line_inventory = pandas.DataFrame()
+
+
+        contsub = spec-cont
+        x = numpy.arange(spec.shape[0])
+
+        supersample = 5
+        markers = ['x', 'o', '+', 'o']
+        fine_x = numpy.arange(int(supersample*contsub.shape[0]), dtype=float)/supersample
+
+        # find the detection thresholds
+        stats = numpy.nanpercentile(contsub, [16,50,84])
+        _med = stats[1]
+        _sigma = 0.5*(stats[2]-stats[0])
+        self.logger.debug("continuum subtracted spec: median=%f, sigma=%f" % (_med, _sigma))
+
+        width_buffer=1.5
+        thresholds = numpy.array([10,5,3,2,1]) * _sigma
+        # thresholds = numpy.array([20,5,2]) * _sigma
+        for iteration, threshold in enumerate(thresholds):  # range(5):
+
+            self.logger.debug("*" * 25 + "\n\n   ITERATION %d\n\n" % (iteration + 1) + "*" * 25)
+            added_new_line = False
+
+            gf = numpy.zeros_like(contsub, dtype=float)
+            diffslopes_left = numpy.pad(numpy.diff(contsub), (0, 1), mode='constant', constant_values=0)
+            diffslopes_right = numpy.pad(numpy.diff(contsub), (1, 0), mode='constant', constant_values=0)
+
+            peaks, peak_props = scipy.signal.find_peaks(contsub, height=threshold, distance=distance)
+
+            # fig, ax = plt.subplots(figsize=(25, 5))
+
+            next_cs = contsub.copy()
+            for i, line in enumerate(peaks):
+
+                # check if we already have a line at this position
+                if (len(line_inventory.index) > 0):
+                    gc = line_inventory['gauss_center'].to_numpy()
+                    gw = line_inventory['gauss_width'].to_numpy()
+                    gw[gw > distance] = distance
+                    match = (line > (gc - width_buffer * gw)) & (line < (gc + width_buffer * gw))
+                    # print(match)
+                    if (numpy.sum(match) > 0):
+                        # self.logger.debug("already found a line at this approximate position %d" % (line))
+                        continue
+                    else:
+                        # self.logger.debug("No counterpart found @ %d, continuing" % (line))
+                        pass
+                else:
+                    # this is the first line, so we for sure don't know about it yet
+                    pass
+
+                added_new_line = True
+
+                _left = numpy.max([0, int(numpy.floor(line - window_size))])
+                _right = numpy.min([int(numpy.ceil(line + window_size)), spec.shape[0] - 1])
+
+                try:
+                    _left2 = numpy.max([_left, numpy.max(x[(x < line) & (diffslopes_left < 0)]) + 1])
+                except ValueError:
+                    _left2 = _left
+
+                try:
+                    _right2 = numpy.min([_right, numpy.min(x[(x > line) & (diffslopes_right > 0)]) - 1])
+                except ValueError:
+                    _right2 = _right
+                # print(_left, _right, "-->", _left2, _right2)
+
+                # generate a flux-weighted mean position as starting guess for the following gauss fit
+                w_x = x[_left2:_right2 + 1]
+                w_spec = spec[_left2:_right2 + 1]
+                weighted = numpy.sum(w_x * w_spec) / numpy.sum(w_spec)
+                # print(line, weighted)
+                peak_flux = contsub[line]
+
+                full_fit_results = scipy.optimize.leastsq(
+                    func=_fit_gauss,
+                    x0=[weighted, 1, peak_flux],
+                    args=(w_x, w_spec)
+                )
+                gaussfit = full_fit_results[0]
+                # print(line, gaussfit)
+
+                _fine_x = fine_x[_left * supersample:_right * supersample + 1]
+                modelgauss = gauss(w_x, gaussfit[0], gaussfit[1], gaussfit[2])
+                next_cs[_left2:_right2 + 1] -= modelgauss
+                gf[_left2:_right2 + 1] += modelgauss
+                # centers.append(gaussfit[0])
+
+                # ax.scatter(x[_left2:_right2+1], cs[_left2:_right2+1], marker=markers[i%4], alpha=0.5)
+
+                # fine_gauss = gauss(_fine_x, gaussfit[0], gaussfit[1], gaussfit[2])
+                # ax.plot(_fine_x, fine_gauss, lw=1.2, ls=":", c='black')
+
+                idx = len(line_inventory.index) + 1
+                line_inventory.loc[idx, 'position'] = line
+                line_inventory.loc[idx, 'peak'] = contsub[line]
+                line_inventory.loc[idx, 'gauss_center'] = gaussfit[0]
+                line_inventory.loc[idx, 'gauss_width'] = gaussfit[1]
+                line_inventory.loc[idx, 'gauss_amp'] = gaussfit[2]
+                line_inventory.loc[idx, 'center_weight'] = weighted
+                line_inventory.loc[idx, 'iteration'] = iteration
+                line_inventory.loc[idx, 'threshold'] = threshold
+                line_inventory.loc[idx, 'fake_x'] = 500
+
+                # linemask = x > gaussfit[0]-
+
+            # print(len(peaks), 'liens founds')
+            # ax.plot(x, cs, lw=0.3)
+            # # ax.plot(x, next_cs, lw=0.5)
+            # # ax.plot(x, gf, lw=0.5, ls=":")
+            # ax.set_title("iteration: %d" % (iteration))
+            # # ax.axhline(y=threshold)
+            # ax.axhline(y=0)
+            # ax.scatter(centers, numpy.ones_like(centers) * 100, marker='|')
+            # ax.scatter(peaks, numpy.ones_like(peaks) * 150, marker='|')
+            # ax.set_ylim((-0.5 * threshold, 5 * threshold))
+            # # ax.set_xlim((100,700))
+            # # ax.set_xlim((350,410))
+            contsub = next_cs
+            # cs_iterations.append(cs.copy())
+
+            if (not added_new_line):
+                self.logger.debug("No new lines found, aborting search")
+                break
+
+        if (filter):
+            # apply some filtering:
+
+            # require the gauss-fits to have similar peaks to the actual data
+            amp_ratio = line_inventory['peak'] / line_inventory['gauss_amp']
+            good = (amp_ratio > 0.5) & (amp_ratio < 1.5)
+
+            # only select lines with "typical" line widths
+            gw = line_inventory['gauss_width'].to_numpy()
+            for i in range(3):
+                _stats = numpy.nanpercentile(gw[good], [16, 50, 84])
+                _med = _stats[1]
+                _sig = 0.5 * (_stats[2] - _stats[0])
+                good = good & (gw > (_med - 3 * _sig)) & (gw < (_med + 3 * _sig))
+
+            line_inventory = line_inventory[good]
+
+        # line_inventory.to_csv("line_inventory.csv", index=False)
+        if (return_contsub):
+            contsub = spec - cont
+            return line_inventory, contsub
+        return line_inventory
 
         if (ref_spec_fn is None):
             ref_spec_fn = "scidoc2212.fits"
