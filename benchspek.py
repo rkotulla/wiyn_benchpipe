@@ -207,6 +207,9 @@ class BenchSpek(object):
 
         return self.linelist
 
+    def find_refined_lines(self, spec):
+        return
+
     def find_lines(self, spec, threshold=1300, distance=5):
         # first, apply running minimum filter to take out continuum
         mins = scipy.ndimage.minimum_filter(input=spec, size=20, mode='constant', cval=0)
