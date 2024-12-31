@@ -834,6 +834,11 @@ class BenchSpek(object):
         self.make_wavelength_calibration_overview_plot(spec, best_fit)#, used_in_fit=use_in_final_fit)
         return best_solution  # results[i_most_matches]
 
+    def spec_scale(self, spec):
+        scaled = numpy.sqrt(spec)
+        scaled[spec <= 0] = 0
+        return scaled
+
     def make_wavelength_calibration_overview_plot(self, comp_spectrum, wavelength_solution, plot_fn=None, used_in_fit=None):
 
         fig, axs = plt.subplots(figsize=(25, 10), nrows=3, tight_layout=True)
