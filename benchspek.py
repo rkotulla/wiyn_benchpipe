@@ -829,9 +829,11 @@ class BenchSpek(object):
         # axs[1].axhline(y=0, ls=":")
         # fig.savefig("matched__wavelength_vs_pixel.png")
         # self.logger.debug("Plot saved to matched__wavelength_vs_pixel.png")
+        plot_fn = "wavelength_solution_details_final.png"
+        self.make_wavelength_calibration_overview_plot(spec, polyfit, plot_fn=plot_fn, used_in_fit=use_in_final_fit)
 
-        print(best_fit)
-        self.make_wavelength_calibration_overview_plot(spec, best_fit)#, used_in_fit=use_in_final_fit)
+        #print(best_fit)
+        #self.make_wavelength_calibration_overview_plot(spec, best_fit)#, used_in_fit=use_in_final_fit)
         return best_solution  # results[i_most_matches]
 
     def spec_scale(self, spec):
