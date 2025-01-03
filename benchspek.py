@@ -834,7 +834,7 @@ class BenchSpek(object):
 
         #print(best_fit)
         #self.make_wavelength_calibration_overview_plot(spec, best_fit)#, used_in_fit=use_in_final_fit)
-        return best_solution  # results[i_most_matches]
+        return polyfit  # results[i_most_matches]
 
     def spec_scale(self, spec):
         scaled = numpy.sqrt(spec)
@@ -1176,13 +1176,11 @@ class BenchSpek(object):
 
         # extract lines for reference spectrum
         self.ref_fiberid = 41
-
         # find wavelength solution for one "reference" fiber
-        _wavelength_solution = self.find_wavelength_solution(
+        self.wavelength_solution = self.find_wavelength_solution(
             self.comp_spectra[self.ref_fiberid],
             make_plots=True
         )
-        self.wavelength_solution = _wavelength_solution[-3:]
         # print("wavelength solution:", self.wavelength_solution)
 
         # Now re-identify lines across all other fiber traces
