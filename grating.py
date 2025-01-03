@@ -66,6 +66,40 @@ class Grating(object):
 
         return
 
+    def wavelength_from_xy(self, x=None, x0=None, y=None, y0=None):
+        if (y0 is None):
+            if (y is None):
+                y0 = 0
+            else:
+                y0 = y - (self.ccd_npixels_y / 2 / self.ccd_x_bin)
+
+        if (x0 is None):
+            if (x is None):
+                x0 = 0
+            else:
+                x0 = x - self.midline_x #(self.ccd_npixels_x / 2 / self.ccd_x_bin)
+
+        x0_phys = x0 * self.ccd_x_bin * self.ccd_pixelsize
+        y0_phys = y0 * self.ccd_y_bin * self.ccd_pixelsize
+        angle_dx = numpy.arctan(x0_phys / self.grating_camera_distance) * self.camera_magnification
+        angle_dy = numpy.arctan(y0_phys / self.grating_camera_distance) * self.camera_magnification
+        wavelength = self.line_spacing / self.grating_order * numpy.cos(angle_dx) * (
+            numpy.sin(self.alpha) + numpy.sin(self.beta - angle_dy)
+        )
+        return wavelength
+
+    def compute_wl_offset(self, y, dx):
+        y_2d, x_2d = numpy.indices((self.ccd_npixels_y, self.ccd_npixels_x))
+        y_2d0 = (y_2d - (self.ccd_npixels_y / 2)) * self.ccd_pixelsize
+        x_2d0 = (x_2d - (self.ccd_npixels_x / 2)) * self.ccd_pixelsize
+        dr = numpy.hypot(x_2d0, y_2d0)
+        angle_offset = numpy.arctan(dr / self.grating_camera_distance) * 2.78
+        wavelength = self.line_spacing / self.grating_order * (
+            numpy.sin(self.alpha) + numpy.sin(self.beta - angle_offset)
+        )
+        return wavelength
+
+
 class Grating_Echelle316(Grating):
     lines_per_mm = 316
     name = "316@63"
