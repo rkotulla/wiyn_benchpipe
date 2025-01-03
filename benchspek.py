@@ -636,9 +636,9 @@ class BenchSpek(object):
         # generate a tree for the reference lines
         in_window = (self.ref_inventory['gauss_wl'] >= self.grating_solution.wl_blueedge) & \
                     (self.ref_inventory['gauss_wl'] <= self.grating_solution.wl_rededge)
-        selected_list = self.ref_inventory[in_window]
-        # selected_list.info()
-        reflines = selected_list['gauss_wl'].reset_index(drop=True).to_numpy()
+        selected_list = self.ref_inventory[in_window].reset_index(drop=True)
+        selected_list.info()
+        reflines = selected_list['gauss_wl'].to_numpy()
         self.logger.info("Found %s calibrated reference lines" % (str(reflines.shape)))
 
         if (True):
@@ -776,18 +776,33 @@ class BenchSpek(object):
         matched = (i2 < ref_tree.n)
         n_good_line_matches2 = numpy.sum(matched)
         ref_wl_refined = reflines[i2[matched]]
+        print("MATCHING CATALOGS")
+        print("indices:", selected_list.index)
+        print("i2_matched:", i2[matched])
+        ref_matched = selected_list.iloc[i2[matched]]
+        print('ref_matched:', len(ref_matched.index))
+        print('comp XXX', len(self.comp_line_inventory['gauss_center'][matched].index))
 
         self.matched_line_inventory = pandas.DataFrame()
         print("peaks:", peaks.shape)
         print("matched:", matched.shape)
         print("ref_wl_refined:", ref_wl_refined.shape)
 
+        _comps = self.comp_line_inventory[matched].reset_index(drop=True)
+        _ref = ref_matched.reset_index(drop=True)
         self.matched_line_inventory = pandas.DataFrame.from_dict({
             'comp_spectrum_pixel': peaks[matched],
-            'reference_wl': ref_wl_refined
-        },
+            'reference_wl': ref_wl_refined,
+            'comp_gauss_center': _comps['gauss_center'],
+            'comp_gauss_width': _comps['gauss_width'],
+            'comp_gauss_amp': _comps['gauss_amp'],
+            'ref_gauss_center': _ref['gauss_wl'],
+            'ref_gauss_width': _ref['gauss_width'],
+            'ref_gauss_amp': _ref['gauss_amp'],
+            },
             orient='columns',
         )
+        self.matched_line_inventory.to_csv("matched_line_inventory.csv", index=False)
 
         comp_peaks_px = peaks[matched] - self.comp_spectrum_center_y
         use_in_final_fit = numpy.isfinite(ref_wl_refined)
