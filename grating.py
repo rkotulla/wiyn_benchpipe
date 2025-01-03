@@ -5,10 +5,12 @@ class Grating(object):
     name = "default"
     lines_per_mm = 1
 
-    ccd_npixels = 4000 # in spectral direction
+    ccd_npixels_y = 4000 # in spectral direction
+    ccd_npixels_x = 2808 # horizon direction
     ccd_pixelsize = 12e-6   # 12 micron pixels
 
     central_wavelength = numpy.nan
+    camera_magnification = 2.78
 
     def __init__(self, header):
         self.logger = logging.getLogger(self.name)
@@ -27,13 +29,13 @@ class Grating(object):
         self.line_spacing = 1e7 / self.lines_per_mm
         print(self.line_spacing)
         self.output_angle = self.grating_angle - self.camera_collimator_angle
-        self.grating_camera_distance = 0.776
+        self.grating_camera_distance = 0.795 # should be 0.776 based on design, but the other value yields better results
 
-        self.ccd_n_pixels_binned = self.ccd_npixels / self.ccd_y_bin
+        self.ccd_n_pixels_binned = self.ccd_npixels_y / self.ccd_y_bin
         self.ccd_pixelsize_binned = self.ccd_pixelsize * self.ccd_y_bin
 
         self.y = numpy.arange(self.ccd_n_pixels_binned)
-        self.y0 = self.y - self.ccd_n_pixels_binned / 2
+        self.y0 = self.y - (self.ccd_n_pixels_binned / 2) # relativ to center of chip
 
         self.compute()
 
@@ -47,7 +49,7 @@ class Grating(object):
         self.logger.info("central wavelength = %f" % (self.central_wavelength))
 
         # full wavelength solution (WL for each y-value)
-        angle_offset = numpy.arctan(self.y0 * self.ccd_pixelsize_binned / self.grating_camera_distance) * 2.78
+        angle_offset = numpy.arctan(self.y0 * self.ccd_pixelsize_binned / self.grating_camera_distance) * self.camera_magnification
         self.wavelength_solution = self.line_spacing / self.grating_order * (
             numpy.sin(self.alpha) + numpy.sin(self.beta - angle_offset)
         )
