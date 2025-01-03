@@ -12,7 +12,7 @@ class Grating(object):
     central_wavelength = numpy.nan
     camera_magnification = 2.78
 
-    def __init__(self, header):
+    def __init__(self, header, midline_x=None):
         self.logger = logging.getLogger(self.name)
 
         self.header = header
@@ -25,6 +25,10 @@ class Grating(object):
         self.ccd_x_bin = header['CCDXBIN']
         self.ccd_y_bin = header['CCDYBIN']
         self.logger.debug("CCD config: bin-X: %d; bin-Y: %d" % (self.ccd_x_bin, self.ccd_y_bin))
+
+        if (midline_x is None):
+            midline_x = self.ccd_npixels_x / self.ccd_x_bin / 2.
+        self.midline_x = midline_x
 
         self.line_spacing = 1e7 / self.lines_per_mm
         print(self.line_spacing)
