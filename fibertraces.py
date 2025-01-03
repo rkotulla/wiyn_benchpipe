@@ -192,7 +192,10 @@ class GenericFiberSpecs(object):
         return dx
 
     def get_mean_fiber_position(self, fiber_id):
-        return numpy.mean(self.fullres_centers[:, fiber_id])
+        if (fiber_id == 'all'):
+            return numpy.mean(self.fullres_centers, axis=0)
+        else:
+            return numpy.mean(self.fullres_centers[:, fiber_id])
 
 
 
