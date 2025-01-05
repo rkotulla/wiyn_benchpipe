@@ -301,7 +301,7 @@ class BenchSpek(object):
         # thresholds = numpy.array([20,5,2]) * _sigma
         for iteration, threshold in enumerate(thresholds):  # range(5):
 
-            self.logger.debug("*" * 25 + "\n\n   ITERATION %d\n\n" % (iteration + 1) + "*" * 25)
+            self.logger.debug("\n"+"*" * 25 + "\n\n   ITERATION %d\n\n" % (iteration + 1) + "*" * 25)
             added_new_line = False
 
             gf = numpy.zeros_like(contsub, dtype=float)
@@ -408,10 +408,12 @@ class BenchSpek(object):
 
         if (filter):
             # apply some filtering:
+            self.logger.debug("Applying filtering [start: %d]" % (len(line_inventory.index)))
 
             # require the gauss-fits to have similar peaks to the actual data
             amp_ratio = line_inventory['peak'] / line_inventory['gauss_amp']
             good = (amp_ratio > 0.5) & (amp_ratio < 1.5)
+            self.logger.debug("Good @ start: %d" % (numpy.sum(good)))
 
             # only select lines with "typical" line widths
             gw = line_inventory['gauss_width'].to_numpy()
@@ -419,8 +421,11 @@ class BenchSpek(object):
                 _stats = numpy.nanpercentile(gw[good], [16, 50, 84])
                 _med = _stats[1]
                 _sig = 0.5 * (_stats[2] - _stats[0])
-                good = good & (gw > (_med - 3 * _sig)) & (gw < (_med + 3 * _sig))
-
+                self.logger.debug("Stats: med: %f, sigma: %f" % (_med, _sig))
+                if (_sig <= 0):
+                    break
+                good = good & (gw >= (_med - 3 * _sig)) & (gw <= (_med + 3 * _sig))
+                self.logger.debug("Good after iteration %d: %d" % (i+1, numpy.sum(good)))
             line_inventory = line_inventory[good]
 
         # line_inventory.to_csv("line_inventory.csv", index=False)
