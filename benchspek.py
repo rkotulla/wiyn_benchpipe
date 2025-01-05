@@ -447,7 +447,8 @@ class BenchSpek(object):
         _x = numpy.arange(s.shape[0], dtype=float) + 1.
         _l = (_x - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
 
-        ref_inventory, contsub = self.get_refined_lines_from_spectrum(spec=s, return_contsub=True)
+        test_inventory, contsub = self.get_refined_lines_from_spectrum(
+            spec=s, return_contsub=True, min_threshold=10)
 
         # threshold = 5000
         # contsub, reflines = self.find_lines(s, threshold=threshold, distance=10)
@@ -455,23 +456,24 @@ class BenchSpek(object):
         # # refpeaks, props = scipy.signal.find_peaks(s, height=5000, distance=30)
         # reflines = ref_inventory['gauss_center'].to_numpy()
         # refpeaks_wl = (reflines - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
-        ref_inventory['gauss_wl'] = (ref_inventory['gauss_center'] - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
+        test_inventory['gauss_wl'] = (test_inventory['gauss_center'] - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
+        test_inventory.to_csv("reflines_inventory.csv", index=False)
 
         # trim down lines to approximately the observed range
-        keepers = numpy.isfinite(ref_inventory['gauss_wl'])
+        keepers = numpy.isfinite(test_inventory['gauss_wl'])
         if (wl_min is not None):
-            keepers[ref_inventory['gauss_wl'] < wl_min] = False
+            keepers[test_inventory['gauss_wl'] < wl_min] = False
         if (wl_max is not None):
-            keepers[ref_inventory['gauss_wl'] > wl_max] = False
-        ref_inventory = ref_inventory[keepers]
+            keepers[test_inventory['gauss_wl'] > wl_max] = False
+        test_inventory = test_inventory[keepers]
 
         self.refspec_raw = hdu[0].data
         self.refspec_continnum_subtracted = contsub
         self.refspec_wavelength = _l
 
         # widths, _, _, _ = scipy.signal.peak_widths(contsub, reflines)
-        widths = ref_inventory['gauss_width'].to_numpy()
-        reflines = ref_inventory['gauss_center'].to_numpy()
+        widths = test_inventory['gauss_width'].to_numpy()
+        reflines = test_inventory['gauss_center'].to_numpy()
         # print(linewidths)
         good_width = numpy.isfinite(widths) # & (reflines > 6300) & (reflines < 6900)
         for _iter in range(3):
@@ -480,16 +482,16 @@ class BenchSpek(object):
             _sigma = 0.5 * (stats[2] - stats[0])
             good_width = good_width & (widths < (_med + 3 * _sigma)) & (widths > (_med - 3 * _sigma))
         med_ref_width = numpy.nanmedian(widths[good_width])
+        ref_dispersion = hdu[0].header['CD1_1']
+        ref_sigma = med_ref_width * ref_dispersion #/ 2.634
         self.logger.debug("reference spectrum line width: %.4f pixels ==> %.4f AA" % (
-            med_ref_width, (med_ref_width * hdu[0].header['CD1_1'])))
+            med_ref_width, ref_sigma))
         # self.logger.debug("reference spectrum line width: %.4f AA" % )
 
         sci_dispersion = 0.31
         med_width = 3.3
         if (sci_sigma is None):
-            sci_sigma = med_width * sci_dispersion / 2.634
-        ref_dispersion = hdu[0].header['CD1_1']
-        ref_sigma = med_ref_width * ref_dispersion / 2.634
+            sci_sigma = (med_width * sci_dispersion / 2.634)
         self.logger.debug("Comparing instrumental resolutions: data:%fAA reference:%fAA" % (sci_sigma, ref_sigma))
 
         if (sci_sigma <= ref_sigma):
@@ -523,8 +525,8 @@ class BenchSpek(object):
         # sel_wl = refpeaks_wl[(refpeaks_wl > 6350) & (refpeaks_wl < 6480) ]
         # TODO: fix
         threshold = 5000
-        sel_wl = ref_inventory['gauss_wl']
-        ax.scatter(sel_wl, ref_inventory['gauss_amp'], marker="|", label="lines") # (thr=%g)" % (threshold))
+        sel_wl = test_inventory['gauss_wl']
+        ax.scatter(sel_wl, test_inventory['gauss_amp'], marker="|", label="lines") # (thr=%g)" % (threshold))
         #ax.axhline(y=threshold)
         ax.legend()
         #plot_fn =
@@ -543,7 +545,9 @@ class BenchSpek(object):
         #     len(fine_lines.index), numpy.min(fine_lines['cal_center']), numpy.max(fine_lines['center'])))
         # return fine_lines
 
+        #
         # Repeat line extraction etc, now that we have a resolution-matched reference spectrum
+        #
         ref_inventory = self.get_refined_lines_from_spectrum(spec=smoothed) #, return_contsub=True)
         ref_inventory['gauss_wl'] = (ref_inventory['gauss_center'] - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
 
