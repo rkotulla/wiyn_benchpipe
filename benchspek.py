@@ -270,7 +270,8 @@ class BenchSpek(object):
         # ax.scatter(fine_lines, numpy.ones_like(line_pos)*23e3, marker="|")
 
 
-    def get_refined_lines_from_spectrum(self, spec, distance=5, window_size=8, filter=True, return_contsub=False):
+    def get_refined_lines_from_spectrum(self, spec, distance=5, window_size=8,
+                                        filter=True, return_contsub=False, min_threshold=None):
         # find a background approximation for the spectrum
         mins = scipy.ndimage.minimum_filter(input=spec, size=20, mode='constant', cval=0)
         cont = scipy.ndimage.gaussian_filter1d(input=mins, sigma=10)
@@ -293,7 +294,10 @@ class BenchSpek(object):
         self.logger.debug("continuum subtracted spec: median=%f, sigma=%f" % (_med, _sigma))
 
         width_buffer=1.5
-        thresholds = numpy.array([10,5,3,2,1]) * _sigma
+        _thresholds = numpy.array([10,5,3,2,1])
+        if (min_threshold is not None):
+            _thresholds = _thresholds[_thresholds >= min_threshold]
+        thresholds = _thresholds * _sigma
         # thresholds = numpy.array([20,5,2]) * _sigma
         for iteration, threshold in enumerate(thresholds):  # range(5):
 
