@@ -378,7 +378,7 @@ class BenchSpek(object):
                 line_inventory.loc[idx, 'position'] = line
                 line_inventory.loc[idx, 'peak'] = contsub[line]
                 line_inventory.loc[idx, 'gauss_center'] = gaussfit[0]
-                line_inventory.loc[idx, 'gauss_width'] = gaussfit[1]
+                line_inventory.loc[idx, 'gauss_width'] = numpy.fabs(gaussfit[1])
                 line_inventory.loc[idx, 'gauss_amp'] = gaussfit[2]
                 line_inventory.loc[idx, 'center_weight'] = weighted
                 line_inventory.loc[idx, 'iteration'] = iteration
@@ -596,7 +596,10 @@ class BenchSpek(object):
 
         # find typical linewidth
         line_width_px = numpy.nanmedian(self.comp_line_inventory['gauss_width'])
-        line_width_AA = line_width_px * dispersion
+        line_width_AA = numpy.fabs(line_width_px * dispersion)
+        self.logger.debug("Typical line width in comp spectrum: %.3fpx -> %.4fAA" % (
+            line_width_px, line_width_AA
+        ))
 
         # now extract reference lines, after matching resolution to that of the
         # data we are about to calibrate
