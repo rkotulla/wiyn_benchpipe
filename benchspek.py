@@ -37,7 +37,7 @@ warnings.filterwarnings('ignore', r'invalid value encountered in divide')
 warnings.simplefilter("ignore", RuntimeWarning)
 
 def gauss(x, center, sigma, amplitude):
-    return amplitude * numpy.exp(-(x - center) ** 2 / sigma ** 2)
+    return amplitude * numpy.exp(-(x - center) ** 2 / (2*sigma ** 2))
 
 
 def _fit_gauss(p, x, flux):
