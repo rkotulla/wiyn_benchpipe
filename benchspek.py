@@ -975,6 +975,24 @@ class BenchSpek(object):
         ##################################
         self.logger.info("starting to re-identify lines across frame")
 
+        # First, find average X-position for each fiber
+        # fiber_positions = numpy.array([self.raw_traces.get_mean_fiber_position(fiber_id=i) \
+        #                    for i in range(self.raw_traces.n_fibers)])
+        fiber_positions = self.raw_traces.get_mean_fiber_position(fiber_id='all')
+        # print(fiber_positions)
+
+        # self.grating_solution = grating_from_header(self.comp_header, midline_x=332)
+        wls = self.grating_solution.wavelength_from_xy(x=fiber_positions,y=None)
+        # from fiber-position, derive offsets in central wavelength
+        # print(wls)
+        central_wl_offset = wls - wls[ref_fiberid]
+        # print(central_wl_offset)
+        numpy.savetxt("wl_xy.txt", numpy.array([fiber_positions, wls, central_wl_offset]).T)
+
+        #
+
+        # return
+
         # cross-correlate in pixelspace to match curvature
         findlines_opt = dict(threshold=1000, distance=5)
         max_shift = 3
