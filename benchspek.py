@@ -406,6 +406,7 @@ class BenchSpek(object):
                 self.logger.debug("No new lines found, aborting search")
                 break
 
+        line_inventory.to_csv("line_inventory_before_filtering.csv", index=False)
         if (filter):
             # apply some filtering:
             self.logger.debug("Applying filtering [start: %d]" % (len(line_inventory.index)))
@@ -501,7 +502,7 @@ class BenchSpek(object):
             smoothed = contsub.copy()
         else:
             smooth_sigma = numpy.sqrt(sci_sigma ** 2 - ref_sigma ** 2)
-            smooth_px_sigma = smooth_sigma / ref_dispersion
+            smooth_px_sigma = smooth_sigma / ref_dispersion / 2. # TODO: take out /2. fudge factor
             self.logger.debug("smoothing needed: sigma=%fAA ==> %.2fpx" % (smooth_sigma, smooth_px_sigma))
             smoothed = scipy.ndimage.gaussian_filter1d(contsub, sigma=smooth_px_sigma)
         numpy.savetxt("refspec_smoothed", smoothed)
@@ -612,10 +613,11 @@ class BenchSpek(object):
 
         # now extract reference lines, after matching resolution to that of the
         # data we are about to calibrate
+        wl_padding = 0.05*(self.grating_solution.wl_rededge - self.grating_solution.wl_blueedge)
         self.find_reflines_from_spec(
             sci_sigma=line_width_AA,
-            wl_min=self.grating_solution.wl_blueedge,
-            wl_max=self.grating_solution.wl_rededge
+            wl_min=(self.grating_solution.wl_blueedge - wl_padding),
+            wl_max=(self.grating_solution.wl_rededge + wl_padding)
         )
         self.ref_inventory.to_csv("inventory_refspec.csv", index=False)
 
