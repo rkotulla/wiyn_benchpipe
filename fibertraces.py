@@ -35,7 +35,7 @@ class GenericFiberSpecs(object):
 
         self.full_y = numpy.arange(self.size_y)
 
-        self.full_y = numpy.arange(trace_image.shape[0])
+
         # self.n_fibers = 82
 
         #
