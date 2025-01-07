@@ -60,6 +60,8 @@ class BenchSpek(object):
     output_wl_min = None
     output_wl_max = None
     output_dispersion = None
+    wl_polyfit_order = 5   # TODO: make this a user-tunable parameter
+
 
     def __init__(self, json_file, raw_dir=None):
         self.logger = logging.getLogger('BenchSpek')
@@ -785,8 +787,6 @@ class BenchSpek(object):
 
         # Now that we have the best solution, do a final match and make some plots
         best_fit = best_solution[-3:]
-
-        fit_order = 5
 
         wl_postfit = numpy.polyval(best_fit, peaks2d - central_y)
         full_wl = numpy.polyval(best_fit, full_y-central_y)
