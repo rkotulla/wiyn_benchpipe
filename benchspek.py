@@ -833,7 +833,7 @@ class BenchSpek(object):
             # now we have line positions in pixels and wavelength in A, let's fit
             polyfit = numpy.polyfit(x=comp_peaks_px[use_in_final_fit],
                                     y=ref_wl_refined[use_in_final_fit],
-                                    deg=fit_order)
+                                    deg=self.wl_polyfit_order)
             fit_wl = numpy.polyval(polyfit, comp_peaks_px)
 
             delta_wl = ref_wl_refined - fit_wl
