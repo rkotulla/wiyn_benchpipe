@@ -62,6 +62,8 @@ class BenchSpek(object):
     output_dispersion = None
     wl_polyfit_order = 5   # TODO: make this a user-tunable parameter
 
+    fiber_inventories = None
+    fiber_wavelength_solutions = None
 
     def __init__(self, json_file, raw_dir=None):
         self.logger = logging.getLogger('BenchSpek')
@@ -988,6 +990,104 @@ class BenchSpek(object):
         central_wl_offset = wls - wls[ref_fiberid]
         # print(central_wl_offset)
         numpy.savetxt("wl_xy.txt", numpy.array([fiber_positions, wls, central_wl_offset]).T)
+
+        best_fit_dispersion = self.wavelength_solution[-2]
+        self.logger.debug("best fit dispersion: %.4f" % (best_fit_dispersion))
+
+        pixel_offsets = central_wl_offset / best_fit_dispersion
+        print(pixel_offsets)
+
+        # ref_fiber_positions = self.comp_line_inventory['gauss_center'].to_numpy()
+        ref_fiber_positions = self.matched_line_inventory['comp_gauss_center'].to_numpy()
+        ref_fiber_tree = scipy.spatial.KDTree(data=numpy.array([ref_fiber_positions, ref_fiber_positions]).T)
+
+        self.fiber_inventories = {}
+        self.fiber_wavelength_solutions = {}
+
+        rect_poly = numpy.array([1., 0]) #pixel_offsets[fiber_id]])
+
+
+        for fiber_id in numpy.hstack([
+            numpy.arange(ref_fiberid, self.n_fibers, 1),
+            numpy.arange(0, ref_fiberid+1)[::-1]
+        ]):
+            if (fiber_id == ref_fiberid):
+                rect_poly = numpy.array([1., 0])
+                prev_fiber_id = ref_fiberid
+
+            # extract spectrum for this fiber
+            self.logger.debug("Working on re-identifying lines in fiber %d" % (fiber_id))
+            fiber_inventory = self.get_refined_lines_from_spectrum(comp_spectra[fiber_id])
+
+            # apply the approximate position shift to account for curvature
+            fiber_inventory['rough_rect_center'] = fiber_inventory['gauss_center'] + pixel_offsets[fiber_id]
+
+            incremental_curvature = pixel_offsets[fiber_id] - pixel_offsets[prev_fiber_id]
+            rect_poly[-1] += incremental_curvature
+
+            # cross-match line positions (in pixel space) from this fiber with the reference fiber
+            # this allows us to assign wavelengths (from the calibrated reference fiber) to each matched line
+            fiber_pos = fiber_inventory['gauss_center'].to_numpy()
+            for iter in range(3):
+                rect_position = numpy.polyval(rect_poly, fiber_pos)
+
+                np2 = numpy.array([rect_position, rect_position]).T
+
+                # now match the rough-aligned peaks to the reference peaks
+                max_shift = 5
+                d, i = ref_fiber_tree.query(np2, k=1, p=1, distance_upper_bound=max_shift)
+                good_match = i < ref_fiber_tree.n
+                # print("fiber %d: ref=%d, this=%d, matched=%d" % (
+                #     fiberid, ref_tree.n, new_peaks.shape[0], numpy.sum(good_match)))
+
+                # generate a pair of match line positions, in this fiber and the reference fiber
+                good_ref_fiber_pos = ref_fiber_positions[i[good_match]]
+                good_fiber_pos = fiber_pos[good_match]
+
+                # from this match, derive a simple translation fit
+                rect_poly = numpy.polyfit(x=good_fiber_pos, y=good_ref_fiber_pos, deg=1)
+                self.logger.debug("FIBER %d, iteration %d: %s (%d / %d|%d)" % (
+                    fiber_id, iter, str(rect_poly), numpy.sum(good_match), fiber_pos.shape[0], ref_fiber_positions.shape[0]))
+
+            # calculate the "rectified position"
+            fiber_inventory['rect_center'] = numpy.polyval(rect_poly, fiber_inventory['gauss_center'])
+
+            # combine information from the matched comp/ref spectrum
+            matched_inventory = fiber_inventory[good_match]
+            crossmatched_comp_ref = self.matched_line_inventory.iloc[i[good_match]]
+            # overwrite the indices to make merging easier
+            crossmatched_comp_ref.index = matched_inventory.index
+            self.logger.debug("FIBER %d: matched: %d // crossmatched ref/comp: %d" % (
+                fiber_id, len(matched_inventory.index), len(crossmatched_comp_ref.index)
+            ))
+            fiber_inventory_combined = fiber_inventory.join(
+                other=crossmatched_comp_ref, how='outer')
+
+            fiber_inventory_combined.to_csv("fiber_inventory_%d.csv" % (fiber_id), index=False)
+            self.fiber_inventories[fiber_id] = fiber_inventory_combined
+
+            # Now we have a matched catalog, so we can derive a new wavelength calibration
+            # for this fiber
+            line_pos = fiber_inventory_combined['gauss_center'] - self.raw_traces.midpoint_y
+            line_wl = fiber_inventory_combined['reference_wl']
+            valid = numpy.isfinite(line_pos) & numpy.isfinite(line_wl)
+            fiber_wl_polyfit = numpy.polyfit(
+                x=line_pos[valid], y=line_wl[valid],
+                deg=self.wl_polyfit_order
+            )
+            self.fiber_wavelength_solutions[fiber_id] = fiber_wl_polyfit
+
+            # for testing and verification, write out the spectrum including
+            # wavelength calibration
+            spec_y = numpy.arange(comp_spectra[fiber_id].shape[0]) - self.raw_traces.midpoint_y
+            spec_wl = numpy.polyval(fiber_wl_polyfit, spec_y)
+            spec_combined = numpy.array([spec_y, spec_wl, comp_spectra[fiber_id]]).T
+            numpy.savetxt("comp_spectrum_%d.txt" % (fiber_id), spec_combined)
+
+            # keep track of what we just worked on
+            prev_fiber_id = fiber_id
+
+        return
 
         #
 
