@@ -28,6 +28,12 @@ class GenericFiberSpecs(object):
             raise ValueError("Need to provide a trace_image!")
         self.trace_image = trace_image
 
+        # store some information about image dimensions
+        self.size_x = trace_image.shape[1]
+        self.size_y = trace_image.shape[0]
+        self.midpoint_y = self.size_y / 2.
+
+        self.full_y = numpy.arange(self.size_y)
 
         self.full_y = numpy.arange(trace_image.shape[0])
         # self.n_fibers = 82
