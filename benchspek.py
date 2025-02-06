@@ -1379,6 +1379,38 @@ class BenchSpek(object):
         )
 
         self.map_2d_wavelength_solution(comp_image=self.master_comp, traces=self.raw_traces)
+        # for human verification, extract and rectify all comp spectra
+        self.logger.info("Extracting and calibrating all COMP spectra")
+        rect_comp = []
+        for fiber_id in range(self.raw_traces.n_fibers):
+            rf = self.wavelength_calibrate_from_raw_trace(
+                spec=self.comp_spectra[fiber_id],
+                wavelength_solution=self.fiber_wavelength_solutions[fiber_id],
+                output_min_wl=6300, output_max_wl=6900, output_dispersion=0.25,
+            )
+            rect_comp.append(rf)
+        rect_comp = numpy.array(rect_comp)
+        pyfits.PrimaryHDU(data=rect_comp).writeto("rect_comp.fits", overwrite=True)
+
+        # also extract and wavelength-calibrate all flat spectra
+        self.logger.info("Extracting and calibrating all FLAT spectra")
+        flat_spectra = self.raw_traces.extract_fiber_spectra(
+            imgdata=self.master_flat,
+            weights=self.master_flat,
+        )
+        pyfits.PrimaryHDU(data=flat_spectra).writeto("flat_spectra.fits", overwrite=True)
+
+        rect_flat = []
+        for fiber_id in range(self.raw_traces.n_fibers):
+            rf = self.wavelength_calibrate_from_raw_trace(
+                spec=flat_spectra[fiber_id],
+                wavelength_solution=self.fiber_wavelength_solutions[fiber_id],
+                output_min_wl=6300, output_max_wl=6900, output_dispersion=0.25,
+            )
+            rect_flat.append(rf)
+        rect_flat = numpy.array(rect_flat)
+        pyfits.PrimaryHDU(data=rect_flat).writeto("rect_flat.fits", overwrite=True)
+
 
 
         self.comp_rectified_2d = self.rectify(
