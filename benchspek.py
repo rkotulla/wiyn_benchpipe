@@ -1352,6 +1352,11 @@ class BenchSpek(object):
         # print("flat_spectra.shape", self.flat_spectra.shape)
         # numpy.savetxt("flat_spectra2.dat", self.flat_spectra)
 
+        fiberflats = self.get_fiber_flatfields()
+        pyfits.PrimaryHDU(data=self.fiber_flatfields).writeto("fiber_flatfields.fits", overwrite=True)
+
+        return
+
         self.logger.info("Extracting fiber spectra from master comp")
         # self.comp_spectra = self.extract_spectra_raw(imgdata=self.master_comp, weights=self.master_flat)
         self.comp_spectra = self.raw_traces.extract_fiber_spectra(
@@ -1378,7 +1383,6 @@ class BenchSpek(object):
             make_plots=False, #True
         )
 
-        self.map_2d_wavelength_solution(comp_image=self.master_comp, traces=self.raw_traces)
         # for human verification, extract and rectify all comp spectra
         self.logger.info("Extracting and calibrating all COMP spectra")
         rect_comp = []
@@ -1411,6 +1415,11 @@ class BenchSpek(object):
         rect_flat = numpy.array(rect_flat)
         pyfits.PrimaryHDU(data=rect_flat).writeto("rect_flat.fits", overwrite=True)
 
+        fiberflats = self.get_fiber_flatfields()
+
+        rectify = False
+        if (rectify):
+            self.map_2d_wavelength_solution(comp_image=self.master_comp, traces=self.raw_traces)
 
 
         self.comp_rectified_2d = self.rectify(
