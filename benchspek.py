@@ -1201,14 +1201,18 @@ class BenchSpek(object):
         center_y = full_y[full_y.shape[0] // 2]
         centered_y = full_y - center_y
 
+        # along each fiber trace, derive the wavelength
         center_x = self.master_comp.shape[1] // 2
         full_correction_per_fiber = numpy.array([
-            numpy.polyval(self.transform2d[i, :], centered_y) for i in range(self.n_fibers)])
+            numpy.polyval(self.fiber_wavelength_solutions[i], centered_y) for i in range(self.n_fibers)])
+        # numpy.polyval(self.transform2d[i, :], centered_y) for i in range(self.n_fibers)])
         print(full_correction_per_fiber.shape)
 
         iy,ix = numpy.indices(comp_image.shape, dtype=float)
 
         # print(ix.shape)
+        # for each row, consider the wavelength points in each fiber trace, and fit a horizontal
+        # polynomial to this data to interpolate wavelength across fibers
         centered_ix = ix - center_x
         print(traces.fullres_centers.shape)
         for y in full_y:  # [600:610]:
