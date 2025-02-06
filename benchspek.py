@@ -1490,7 +1490,7 @@ class BenchSpek(object):
         pad_width = filter_width - (wl.shape[0] % filter_width)
         wl_padded = numpy.pad(wl, (0, pad_width),
                               mode='constant', constant_values=0)
-        wl_padded[-pad_width:] = numpy.NaN
+        wl_padded[-pad_width:] = numpy.nan
         rebinned_wl = numpy.nanmedian(wl_padded.reshape((-1, filter_width)), axis=1)
 
         fiber_flatfields = [None] * self.n_fibers
@@ -1504,7 +1504,7 @@ class BenchSpek(object):
             # chunks of a given width
             fiber_padded = numpy.pad(fiberspec, (0, pad_width),
                                      mode='constant', constant_values=0)
-            fiber_padded[-pad_width:] = numpy.NaN
+            fiber_padded[-pad_width:] = numpy.nan
             n_good = numpy.isfinite(wl_padded) & numpy.isfinite(fiber_padded)
 
             # calculate the median flux in each little parcel of fluxes
@@ -1541,7 +1541,7 @@ class BenchSpek(object):
         pad_width = filter_width - (wl.shape[0] % filter_width)
         wl_padded = numpy.pad(wl, (0, pad_width),
                               mode='constant', constant_values=0)
-        wl_padded[-pad_width:] = numpy.NaN
+        wl_padded[-pad_width:] = numpy.nan
         rebinned_wl = numpy.nanmedian(wl_padded.reshape((-1, filter_width)), axis=1)
 
         fiber_flatfields = [None] * self.n_fibers
@@ -1555,7 +1555,7 @@ class BenchSpek(object):
             # chunks of a given width
             fiber_padded = numpy.pad(fiberspec, (0, pad_width),
                                      mode='constant', constant_values=0)
-            fiber_padded[-pad_width:] = numpy.NaN
+            fiber_padded[-pad_width:] = numpy.nan
             n_good = numpy.isfinite(wl_padded) & numpy.isfinite(fiber_padded)
 
             # calculate the median flux in each little parcel of fluxes

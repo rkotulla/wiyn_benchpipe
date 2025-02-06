@@ -131,9 +131,9 @@ class GenericFiberSpecs(object):
         # full frame
         self.logger.debug("Upsampling fiber traces to full resolution")
         y_dim = self.full_y.shape[0]
-        self.fullres_left = numpy.full((y_dim, self.n_fibers), fill_value=numpy.NaN)
-        self.fullres_right = numpy.full((y_dim, self.n_fibers), fill_value=numpy.NaN)
-        self.fullres_centers = numpy.full((y_dim, self.n_fibers), fill_value=numpy.NaN)
+        self.fullres_left = numpy.full((y_dim, self.n_fibers), fill_value=numpy.nan)
+        self.fullres_right = numpy.full((y_dim, self.n_fibers), fill_value=numpy.nan)
+        self.fullres_centers = numpy.full((y_dim, self.n_fibers), fill_value=numpy.nan)
         for fiber_id in range(self.n_fibers):
             for meas, full in zip([all_lefts, all_rights, centers],
                                   [self.fullres_left, self.fullres_right, self.fullres_centers]):
@@ -152,7 +152,7 @@ class GenericFiberSpecs(object):
             weights = numpy.ones_like(imgdata, dtype=float)
         #        weights = bgsub
 
-        fiber_specs = numpy.full((self.n_fibers, self.full_y.shape[0]), fill_value=numpy.NaN)
+        fiber_specs = numpy.full((self.n_fibers, self.full_y.shape[0]), fill_value=numpy.nan)
 
         if fibers is None:
             fibers = numpy.arange(self.n_fibers)
@@ -163,8 +163,8 @@ class GenericFiberSpecs(object):
 
             _mf = weights.copy()
             _spec = imgdata.copy()
-            _mf[~in_this_fiber] = numpy.NaN
-            _spec[~in_this_fiber] = numpy.NaN
+            _mf[~in_this_fiber] = numpy.nan
+            _spec[~in_this_fiber] = numpy.nan
 
             # pyfits.HDUList([
             #     pyfits.PrimaryHDU(),
