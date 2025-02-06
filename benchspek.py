@@ -1422,12 +1422,13 @@ class BenchSpek(object):
             self.map_2d_wavelength_solution(comp_image=self.master_comp, traces=self.raw_traces)
 
 
-        self.comp_rectified_2d = self.rectify(
-            self.master_comp, self.poly_transforms,
-            min_wl=self.get_config('output', 'min_wl', fallback=None),
-            max_wl=self.get_config('output', 'max_wl', fallback=None),
-            out_dispersion=self.get_config('output', 'dispersion', fallback=None)
-        )
+
+            self.comp_rectified_2d = self.rectify(
+                self.master_comp, self.poly_transforms,
+                min_wl=self.get_config('output', 'min_wl', fallback=None),
+                max_wl=self.get_config('output', 'max_wl', fallback=None),
+                out_dispersion=self.get_config('output', 'dispersion', fallback=None)
+            )
 
         phdu = pyfits.PrimaryHDU(data=self.comp_rectified_2d)
         # dispersion solution
@@ -1442,34 +1443,49 @@ class BenchSpek(object):
         phdu.header['CTYPE1'] = "FIBER-ID"
         self.logger.info("Writing rectified COMP spectrum")
         phdu.writeto("comp_rectified.fits", overwrite=True)
+            phdu = pyfits.PrimaryHDU(data=self.comp_rectified_2d)
+            # dispersion solution
+            phdu.header['CRVAL2'] = self.output_wl_min * 1.e-10
+            phdu.header['CRPIX2'] = 1.
+            phdu.header['CD2_2'] = self.output_dispersion * 1.e-10
+            phdu.header['CTYPE2'] = "WAVE-W2A"
+            # fiber-id (approximate)
+            phdu.header['CRVAL1'] = 1
+            phdu.header['CRPIX1'] = self.raw_traces.get_mean_fiber_position(fiber_id=0)
+            phdu.header['CD1_1'] = 1./self.raw_traces.get_fiber_spacing()
+            phdu.header['CTYPE1'] = "FIBER-ID"
+            self.logger.info("Writing rectified COMP spectrum")
+            phdu.writeto("comp_rectified.fits", overwrite=True)
 
-        # TODO HERE: create traces for the rectified spectra
-        self.logger.info("Rectifing master flatfield for final extraction")
-        self.flat_rectified_2d = self.rectify(
-            self.master_flat, self.poly_transforms,
-            min_wl=self.get_config('output', 'min_wl', fallback=None),
-            max_wl=self.get_config('output', 'max_wl', fallback=None),
-            out_dispersion=self.get_config('output', 'dispersion', fallback=None)
-        )
-        phdu = pyfits.PrimaryHDU(data=self.flat_rectified_2d)
-        # dispersion solution
-        phdu.header['CRVAL2'] = self.output_wl_min * 1.e-10
-        phdu.header['CRPIX2'] = 1.
-        phdu.header['CD2_2'] = self.output_dispersion * 1.e-10
-        phdu.header['CTYPE2'] = "WAVE-W2A"
-        # fiber-id (approximate)
-        phdu.header['CRVAL1'] = 1
-        phdu.header['CRPIX1'] = self.raw_traces.get_mean_fiber_position(fiber_id=0)
-        phdu.header['CD1_1'] = 1./self.raw_traces.get_fiber_spacing()
-        phdu.header['CTYPE1'] = "FIBER-ID"
-        self.logger.info("Writing rectified COMP spectrum")
-        phdu.writeto("flat_rectified.fits", overwrite=True)
+    #         return
 
-        # Now prepare line-traces using the rectified master flatfield
-        self.rect_traces = fibertraces.SparsepakFiberSpecs()
-        self.rect_traces.find_trace_fibers(self.flat_rectified_2d)
+            # TODO HERE: create traces for the rectified spectra
+            self.logger.info("Rectifing master flatfield for final extraction")
+            self.flat_rectified_2d = self.rectify(
+                self.master_flat, self.poly_transforms,
+                min_wl=self.get_config('output', 'min_wl', fallback=None),
+                max_wl=self.get_config('output', 'max_wl', fallback=None),
+                out_dispersion=self.get_config('output', 'dispersion', fallback=None)
+            )
+            phdu = pyfits.PrimaryHDU(data=self.flat_rectified_2d)
+            # dispersion solution
+            phdu.header['CRVAL2'] = self.output_wl_min * 1.e-10
+            phdu.header['CRPIX2'] = 1.
+            phdu.header['CD2_2'] = self.output_dispersion * 1.e-10
+            phdu.header['CTYPE2'] = "WAVE-W2A"
+            # fiber-id (approximate)
+            phdu.header['CRVAL1'] = 1
+            phdu.header['CRPIX1'] = self.raw_traces.get_mean_fiber_position(fiber_id=0)
+            phdu.header['CD1_1'] = 1./self.raw_traces.get_fiber_spacing()
+            phdu.header['CTYPE1'] = "FIBER-ID"
+            self.logger.info("Writing rectified COMP spectrum")
+            phdu.writeto("flat_rectified.fits", overwrite=True)
 
-        self.get_fiber_flatfields()
+            # Now prepare line-traces using the rectified master flatfield
+            self.rect_traces = fibertraces.SparsepakFiberSpecs()
+            self.rect_traces.find_trace_fibers(self.flat_rectified_2d)
+
+            self.get_fiber_flatfields()
 
         sys.exit(0)
 
