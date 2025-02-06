@@ -1232,6 +1232,39 @@ class BenchSpek(object):
 
         return self.wavelength_mapping_2d
 
+
+    def wavelength_calibrate_from_raw_trace(
+            self,
+            spec, wavelength_solution,
+            output_min_wl=None, output_max_wl=None,
+            output_dispersion=0.2):
+
+        y0 = numpy.arange(spec.shape[0]) - self.raw_traces.midpoint_y
+        wl = numpy.polyval(wavelength_solution, y0)
+
+        # prepare the final output wavelength grid
+        if (output_min_wl is None):
+            output_min_wl = numpy.nanmin(wl)
+        if (output_max_wl is None):
+            output_max_wl = numpy.nanmax(wl)
+
+        n_wl_points = int(((output_max_wl - output_min_wl) / output_dispersion)) + 1
+        out_wl_points = numpy.arange(n_wl_points, dtype=float) * output_dispersion + output_min_wl
+        out_spectral_axis = out_wl_points * u.AA
+
+        fluxcon = FluxConservingResampler(extrapolation_treatment='nan_fill')
+
+        # sort by wavelength to make sure wavelength is increasing
+        wl_sort = numpy.argsort(wl)
+        wl_AA = wl[wl_sort] * u.AA
+        flux = spec[wl_sort] * u.DN
+
+        spec1d = Spectrum1D(spectral_axis=wl_AA, flux=flux)
+        cal_spec = fluxcon(spec1d, out_spectral_axis)
+
+        return cal_spec.flux.to(u.DN).value
+
+
     def rectify(self, image, poly_transforms, min_wl=None, max_wl=None, out_dispersion=0.2):
 
         inspec = image.copy()
