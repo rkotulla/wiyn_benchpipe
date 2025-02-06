@@ -1430,19 +1430,6 @@ class BenchSpek(object):
                 out_dispersion=self.get_config('output', 'dispersion', fallback=None)
             )
 
-        phdu = pyfits.PrimaryHDU(data=self.comp_rectified_2d)
-        # dispersion solution
-        phdu.header['CRVAL2'] = self.output_wl_min * 1.e-10
-        phdu.header['CRPIX2'] = 1.
-        phdu.header['CD2_2'] = self.output_dispersion * 1.e-10
-        phdu.header['CTYPE2'] = "WAVE-W2A"
-        # fiber-id (approximate)
-        phdu.header['CRVAL1'] = 1
-        phdu.header['CRPIX1'] = self.raw_traces.get_mean_fiber_position(fiber_id=0)
-        phdu.header['CD1_1'] = 1./self.raw_traces.get_fiber_spacing()
-        phdu.header['CTYPE1'] = "FIBER-ID"
-        self.logger.info("Writing rectified COMP spectrum")
-        phdu.writeto("comp_rectified.fits", overwrite=True)
             phdu = pyfits.PrimaryHDU(data=self.comp_rectified_2d)
             # dispersion solution
             phdu.header['CRVAL2'] = self.output_wl_min * 1.e-10
@@ -1491,6 +1478,60 @@ class BenchSpek(object):
 
 
     def get_fiber_flatfields(self, filter_width=50):
+        # self.flat_fibers = self.raw_traces.extract_fiber_spectra(
+        #     imgdata=self.master_flat,
+        #     weights=self.master_flat,
+        # )
+        #
+
+        # self.flat_spectra
+
+        wl = numpy.arange(self.flat_spectra.shape[1], dtype=float)
+        pad_width = filter_width - (wl.shape[0] % filter_width)
+        wl_padded = numpy.pad(wl, (0, pad_width),
+                              mode='constant', constant_values=0)
+        wl_padded[-pad_width:] = numpy.NaN
+        rebinned_wl = numpy.nanmedian(wl_padded.reshape((-1, filter_width)), axis=1)
+
+        fiber_flatfields = [None] * self.n_fibers
+        self.fiber_flat_splines = [None] * self.n_fibers
+
+        for fiber_id in range(self.n_fibers):
+            # pick a fiber to work on
+            fiberspec = self.flat_spectra[fiber_id]
+
+            # make sure we can parcel out the full-res spectra into
+            # chunks of a given width
+            fiber_padded = numpy.pad(fiberspec, (0, pad_width),
+                                     mode='constant', constant_values=0)
+            fiber_padded[-pad_width:] = numpy.NaN
+            n_good = numpy.isfinite(wl_padded) & numpy.isfinite(fiber_padded)
+
+            # calculate the median flux in each little parcel of fluxes
+            rebinned_spec = numpy.nanmedian(fiber_padded.reshape((-1, filter_width)), axis=1)
+            rebinned_samples = numpy.nansum(n_good.astype(int).reshape((-1, filter_width)), axis=1)
+            #     print(rebinned_samples)
+            #     print(rebinned_wl)
+            good = rebinned_samples > 0.2 * filter_width
+
+            spline = scipy.interpolate.CubicSpline(
+                x=rebinned_wl[good],
+                y=rebinned_spec[good],
+                bc_type='natural'
+            )
+            full_spline = spline(wl)
+
+            self.fiber_flat_splines[fiber_id] = spline
+            fiber_flatfields[fiber_id] = full_spline
+
+            numpy.savetxt(
+                "fiberflat_%d.txt" % (fiber_id),
+                numpy.array([wl_padded, fiber_padded, spline(wl_padded)]).T
+            )
+
+        self.fiber_flatfields = numpy.array(fiber_flatfields)
+
+    def get_rectified_fiber_flatfields(self, filter_width=50):
         self.flat_fibers = self.rect_traces.extract_fiber_spectra(
             imgdata=self.flat_rectified_2d,
             weights=self.flat_rectified_2d,
