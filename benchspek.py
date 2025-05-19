@@ -112,7 +112,14 @@ class BenchSpek(object):
         header = None
         for fn in filelist:
             _fn = os.path.join(self.raw_dir, fn)
-            hdulist = pyfits.open(_fn)
+            if (not os.path.isfile(_fn)):
+                self.logger.warning("Specified input file (%s) not found" % (_fn))
+                continue
+            try:
+                hdulist = pyfits.open(_fn)
+            except OSError:
+                self.logger.critical("File %s can not be read" % (_fn))
+                continue
             if (header is None):
                 header = hdulist[0].header
             data = hdulist[0].data.astype(float)
