@@ -449,7 +449,7 @@ class BenchSpek(object):
     def find_reflines_from_spec(self, ref_spec_fn=None, sci_sigma=None, wl_min=None, wl_max=None):
 
         if (ref_spec_fn is None):
-            ref_spec_fn = "scidoc2212.fits"
+            ref_spec_fn = self.config['linelist'] # "scidoc2212.fits"
         self.logger.debug("Reading wavelength reference spectrum from %s" % (ref_spec_fn))
         hdu = pyfits.open(ref_spec_fn)
         s = hdu[0].data
