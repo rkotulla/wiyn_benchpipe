@@ -1429,6 +1429,14 @@ class BenchSpek(object):
             make_plots=False, #True
         )
 
+        self.logger.info("Generating output wavelength grid")
+        wl_axis = self.get_wavelength_axis(
+            output_min_wl=self.config['output']['min_wl'],
+            output_max_wl=self.config['output']['max_wl'],
+            output_dispersion=self.config['output']['dispersion']
+        )
+        self.output_wavelength_axis = wl_axis
+
         # for human verification, extract and rectify all comp spectra
         self.logger.info("Extracting and calibrating all COMP spectra")
         rect_comp = []
@@ -1436,7 +1444,9 @@ class BenchSpek(object):
             rf = self.wavelength_calibrate_from_raw_trace(
                 spec=self.comp_spectra[fiber_id],
                 wavelength_solution=self.fiber_wavelength_solutions[fiber_id],
-                output_min_wl=6300, output_max_wl=6900, output_dispersion=0.25,
+                output_min_wl=self.config['output']['min_wl'],
+                output_max_wl=self.config['output']['max_wl'],
+                output_dispersion=self.config['output']['dispersion'],
             )
             rect_comp.append(rf)
         rect_comp = numpy.array(rect_comp)
@@ -1455,7 +1465,9 @@ class BenchSpek(object):
             rf = self.wavelength_calibrate_from_raw_trace(
                 spec=flat_spectra[fiber_id],
                 wavelength_solution=self.fiber_wavelength_solutions[fiber_id],
-                output_min_wl=6300, output_max_wl=6900, output_dispersion=0.25,
+                output_min_wl=self.config['output']['min_wl'],
+                output_max_wl=self.config['output']['max_wl'],
+                output_dispersion=self.config['output']['dispersion'],
             )
             rect_flat.append(rf)
         rect_flat = numpy.array(rect_flat)
