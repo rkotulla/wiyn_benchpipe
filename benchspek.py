@@ -1676,16 +1676,52 @@ class BenchSpek(object):
                 flat=None,
                 op=numpy.nanmedian
             )
-            target_rect = self.rectify(
-                target_raw, self.poly_transforms,
-                min_wl=self.get_config('output', 'min_wl', fallback=None),
-                max_wl=self.get_config('output', 'max_wl', fallback=None),
-                out_dispersion=self.get_config('output', 'dispersion', fallback=None)
-            )
-            self.write_rectified_spectrum(
-                spec=target_rect,
-                output_filename="%s__rectified.fits" % (target_name)
-            )
+            __fn = "%s__combined.fits" % (target_name)
+            self.logger.info("Writing results for target '%s' to %s ..." % (target_name, __fn))
+            pyfits.PrimaryHDU(data=target_combined, header=target_header).writeto(__fn, overwrite=True)
+            # print(target_combined)
+
+            self.logger.info("Extracting trace spectra [target: %s]" % (target_name))
+            sci_spectra = self.raw_traces.extract_fiber_spectra(
+                imgdata=target_combined, weights=self.master_flat)
+
+            # for human verification, extract and rectify all comp spectra
+            self.logger.info("Appying wavelength calibrating to extracted spectra")
+            rect_sci_target = []
+            for fiber_id in range(self.raw_traces.n_fibers):
+                rf = self.wavelength_calibrate_from_raw_trace(
+                    spec=sci_spectra[fiber_id],
+                    wavelength_solution=self.fiber_wavelength_solutions[fiber_id],
+                    output_min_wl=self.config['output']['min_wl'],
+                    output_max_wl=self.config['output']['max_wl'],
+                    output_dispersion=self.config['output']['dispersion'],
+                )
+                rect_sci_target.append(rf)
+            rect_sci_target = numpy.array(rect_sci_target)
+
+            __fn = "%s_rectified_check.fits" % (target_name)
+            self.logger.info("Writing extracted & calibrated spectra to %s" % (__fn))
+            pyfits.PrimaryHDU(data=rect_sci_target).writeto(__fn, overwrite=True)
+
+            # TODO: apply flatfielding
+            sky_fiber_ids = []
+
+            # TODO: Combine all sky-fibers into a master sky spectrum
+
+            # TODO: Subtract sky from each fiber: Option1: simple subtract; Option2: Fit optimal shift & amplitude
+
+            continue
+
+            # target_rect = self.rectify(
+            #     target_, self.poly_transforms,
+            #     min_wl=self.get_config('output', 'min_wl', fallback=None),
+            #     max_wl=self.get_config('output', 'max_wl', fallback=None),
+            #     out_dispersion=self.get_config('output', 'dispersion', fallback=None)
+            # )
+            # self.write_rectified_spectrum(
+            #     spec=target_rect,
+            #     output_filename="%s__rectified.fits" % (target_name)
+            # )
 
             # extract all spectra for all fibers
             target_fiberspecs = self.rect_traces.extract_fiber_spectra(
@@ -1734,5 +1770,5 @@ if __name__ == '__main__':
     # print(json.dumps(benchspec.config, indent=2))
 
     benchspec.calibrate(save=True)
-    # benchspec.reduce()
+    benchspec.reduce()
 
