@@ -1239,6 +1239,40 @@ class BenchSpek(object):
 
         return self.wavelength_mapping_2d
 
+    def get_wavelength_axis(
+            self, wavelength_solution=None,
+            output_min_wl=None, output_max_wl=None,
+            output_dispersion=0.2):
+        """
+        calculate the user-specified wavelength grid of all
+        wavelength-corrected and/or rectified spectra.
+        """
+
+        if (wavelength_solution is None):
+            wavelength_solution = self.wavelength_solution
+
+        y,x = numpy.indices((self.raw_traces.n_fibers, self.comp_spectra[0].shape[0]), dtype=float)
+        # print(y.shape, x.shape)
+        y0 = y - self.raw_traces.midpoint_y
+        wl = numpy.array([numpy.polyval(self.fiber_wavelength_solutions[id], y0[id])
+              for id in range(self.raw_traces.n_fibers)])
+        _wl_min = numpy.nanmin(wl)
+        _wl_max = numpy.nanmax(wl)
+        self.logger.info("Calibrated wavelength range: %.3f ... %3f" % (_wl_min, _wl_max))
+        # y0 = numpy.arange(spec.shape[0]) - self.raw_traces.midpoint_y
+        # wl = numpy.polyval(wavelength_solution, y0)
+
+        # prepare the final output wavelength grid
+        if (output_min_wl is None):
+            output_min_wl = _wl_min
+        if (output_max_wl is None):
+            output_max_wl = _wl_max
+
+        n_wl_points = int(((output_max_wl - output_min_wl) / output_dispersion)) + 1
+        out_wl_points = numpy.arange(n_wl_points, dtype=float) * output_dispersion + output_min_wl
+
+        return out_wl_points
+
 
     def wavelength_calibrate_from_raw_trace(
             self,
@@ -1246,26 +1280,31 @@ class BenchSpek(object):
             output_min_wl=None, output_max_wl=None,
             output_dispersion=0.2):
 
+        # # prepare the final output wavelength grid
+        # if (output_min_wl is None):
+        #     output_min_wl = numpy.nanmin(wl)
+        # if (output_max_wl is None):
+        #     output_max_wl = numpy.nanmax(wl)
+        #
+        # n_wl_points = int(((output_max_wl - output_min_wl) / output_dispersion)) + 1
+        # out_wl_points = numpy.arange(n_wl_points, dtype=float) * output_dispersion + output_min_wl
+
+        # use the output wavelength grid, convert it to AA to make astropy happy
+        out_spectral_axis = self.output_wavelength_axis * u.AA
+
+        # setup spectrum interpolator
+        fluxcon = FluxConservingResampler(extrapolation_treatment='nan_fill')
+
+        # Calculate the calibrated wavelength for each uncalibrated pixel
         y0 = numpy.arange(spec.shape[0]) - self.raw_traces.midpoint_y
         wl = numpy.polyval(wavelength_solution, y0)
-
-        # prepare the final output wavelength grid
-        if (output_min_wl is None):
-            output_min_wl = numpy.nanmin(wl)
-        if (output_max_wl is None):
-            output_max_wl = numpy.nanmax(wl)
-
-        n_wl_points = int(((output_max_wl - output_min_wl) / output_dispersion)) + 1
-        out_wl_points = numpy.arange(n_wl_points, dtype=float) * output_dispersion + output_min_wl
-        out_spectral_axis = out_wl_points * u.AA
-
-        fluxcon = FluxConservingResampler(extrapolation_treatment='nan_fill')
 
         # sort by wavelength to make sure wavelength is increasing
         wl_sort = numpy.argsort(wl)
         wl_AA = wl[wl_sort] * u.AA
         flux = spec[wl_sort] * u.DN
 
+        # apply
         spec1d = Spectrum1D(spectral_axis=wl_AA, flux=flux)
         cal_spec = fluxcon(spec1d, out_spectral_axis)
 
