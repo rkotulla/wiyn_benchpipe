@@ -1205,7 +1205,7 @@ class BenchSpek(object):
         fullmap_y = numpy.zeros_like(comp_image, dtype=float)
         # fullmap_y.shape
         full_y = numpy.arange(comp_image.shape[0])
-        center_y = full_y[full_y.shape[0] // 2]
+        center_y = self.raw_traces.midpoint_y #   full_y[full_y.shape[0] // 2]
         centered_y = full_y - center_y
 
         # along each fiber trace, derive the wavelength
