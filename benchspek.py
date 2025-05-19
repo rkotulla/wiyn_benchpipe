@@ -1225,7 +1225,7 @@ class BenchSpek(object):
         for y in full_y:  # [600:610]:
             centers = traces.fullres_centers[y, :] - center_x
             corrections = full_correction_per_fiber[:, y]
-            pfy = numpy.polyfit(centers, corrections, deg=2)
+            pfy = numpy.polyfit(centers, corrections, deg=4)
             # print(pfy)
             fullmap_y[y, :] = numpy.polyval(pfy, centered_ix[y, :])
 
