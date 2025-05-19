@@ -1670,7 +1670,7 @@ class BenchSpek(object):
                 filelist = [filelist]
             # print(filelist)
 
-            target_raw = self.basic_reduction(
+            target_combined, target_header = self.basic_reduction(
                 filelist=filelist,
                 bias=self.master_bias,
                 flat=None,
