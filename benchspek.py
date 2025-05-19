@@ -879,7 +879,7 @@ class BenchSpek(object):
         return polyfit  # results[i_most_matches]
 
     def spec_scale(self, spec):
-        scaled = numpy.sqrt(spec)
+        scaled = spec.copy() #numpy.sqrt(spec)
         scaled[spec <= 0] = 0
         return scaled
 
