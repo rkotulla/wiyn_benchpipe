@@ -907,7 +907,7 @@ class BenchSpek(object):
 
 
         comp_wl = numpy.polyval(wavelength_solution, self.comp_spectrum_full_y0)
-        print("womp-wl:\n", comp_wl)
+        # print("womp-wl:\n", comp_wl)
         comp_line_amps = numpy.nanpercentile(self.comp_line_inventory['gauss_amp'], [16,50,84])
         typical_comp_line_amp = comp_line_amps[2]
         self.logger.info("Spec scaling: ref:%f  comp:%f" % (typical_ref_line_amp, typical_comp_line_amp))
