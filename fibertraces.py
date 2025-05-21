@@ -165,8 +165,9 @@ class GenericFiberSpecs(object):
             fibers = numpy.arange(self.n_fibers)
 
         for fiber_id in fibers:  # range(n_fibers):
-            in_this_fiber = (ix > self.fullres_left[:, fiber_id].reshape((-1, 1))) & (
-                    ix < self.fullres_right[:, fiber_id].reshape((-1, 1))) & (weights > 0)
+            #in_this_fiber = (ix > self.fullres_left[:, fiber_id].reshape((-1, 1))) & (
+            #        ix <= self.fullres_right[:, fiber_id].reshape((-1, 1))) &
+            in_this_fiber = self.get_fiber_mask(imgdata, fiber_id) & (weights > 0)
 
             _mf = weights.copy()
             _spec = imgdata.copy()
