@@ -26,6 +26,7 @@ class Config(object):
             {
                 'raw_directory': '.',
                 'cals_directory': '.',
+                'output_directory': '.',
                 'bias': [],
                 'flat': [],
                 'comp': [],
@@ -119,3 +120,26 @@ class Config(object):
             with open(filename, "w") as f:
                 f.write(txt)
         return txt
+
+    def create_output_directories(self):
+        # get list of all output directories
+        dir_list = [self.get("cals_directory"),
+                    self.get("output_directory")]
+        targets = self.get("science")
+        # print(targets)
+        for target in targets:
+            _d = self.get(target, "output_directory")
+            # print("%s --> %s" % (target, _d))
+            dir_list.append(_d)
+        dir_list = [d for d in dir_list if d is not None]
+        # print(dir_list)
+
+        self.logger.info("List of all output directories:\n%s" % ("\n ** ".join(dir_list)))
+
+        # check if directory exists, and if not create it
+        for dir_name in set(dir_list):
+            if (dir_name is None):
+                continue
+            elif (not os.path.isdir(dir_name)):
+                self.logger.info("Creating directory: %s" % (dir_name))
+                os.makedirs(dir_name)
