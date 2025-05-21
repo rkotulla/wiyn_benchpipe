@@ -130,6 +130,7 @@ class GenericFiberSpecs(object):
         # Now we have the coarsely sampled position along the fiber, upscale this to
         # full frame
         self.logger.debug("Upsampling fiber traces to full resolution")
+        # TODO: Check if we need to do some rounding here to make sure we capture the left/right edge correctly
         y_dim = self.full_y.shape[0]
         self.fullres_left = numpy.full((y_dim, self.n_fibers), fill_value=numpy.nan)
         self.fullres_right = numpy.full((y_dim, self.n_fibers), fill_value=numpy.nan)
