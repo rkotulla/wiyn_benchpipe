@@ -5,6 +5,7 @@ import logging
 import scipy.ndimage
 import scipy.signal
 import pandas
+import astropy.io.fits as pyfits
 import matplotlib.pyplot as plt
 
 
@@ -184,6 +185,8 @@ class GenericFiberSpecs(object):
             fiber_specs[fiber_id] = weighted
 
             _sum = numpy.nansum(_spec, axis=1)
+
+            pyfits.PrimaryHDU(data=in_this_fiber.astype(int)).writeto("fibermask_%d.fits" % (fiber_id+1), overwrite=True)
 
             if (not plot):
                 continue
