@@ -1460,6 +1460,10 @@ class BenchSpek(object):
         rect_comp = numpy.array(rect_comp)
         pyfits.PrimaryHDU(data=rect_comp).writeto("rect_comp.fits", overwrite=True)
 
+
+        self.prepare_fiber_flatfields()
+        # pyfits.PrimaryHDU(data=self.fiber_flatfields).writeto("fiber_flatfields.fits", overwrite=True)
+
         # also extract and wavelength-calibrate all flat spectra
         self.logger.info("Extracting and calibrating all FLAT spectra")
         flat_spectra = self.raw_traces.extract_fiber_spectra(
@@ -1543,28 +1547,48 @@ class BenchSpek(object):
         sys.exit(0)
 
 
-    def get_fiber_flatfields(self, filter_width=50):
+    def prepare_fiber_flatfields(self, filter_width=50):
         # self.flat_fibers = self.raw_traces.extract_fiber_spectra(
         #     imgdata=self.master_flat,
         #     weights=self.master_flat,
         # )
         #
 
-        # self.flat_spectra
+        #
+        # In the first iteration, extract all flatfield fiber spectra in
+        # raw pixel coordinates (without any interpolation)
+        #
+        self.flat_spectra = self.raw_traces.extract_fiber_spectra(
+            imgdata=self.master_flat, weights=self.master_flat)
 
-        wl = numpy.arange(self.flat_spectra.shape[1], dtype=float)
-        pad_width = filter_width - (wl.shape[0] % filter_width)
-        wl_padded = numpy.pad(wl, (0, pad_width),
+        pixel = numpy.arange(self.flat_spectra.shape[1], dtype=float)
+        pad_width = filter_width - (pixel.shape[0] % filter_width)
+        wl_padded = numpy.pad(pixel, (0, pad_width),
                               mode='constant', constant_values=0)
         wl_padded[-pad_width:] = numpy.nan
         rebinned_wl = numpy.nanmedian(wl_padded.reshape((-1, filter_width)), axis=1)
 
+        data_wl_range = self.data_wl_max - self.data_wl_min
+        center_left = self.data_wl_min + 0.4 * data_wl_range
+        center_right = self.data_wl_min + 0.6 * data_wl_range
+        center_wl = numpy.array([center_left, center_right])
+        self.logger.info("Normalizing each flat in the range %.1f ... %.1f" % (
+            center_left, center_right))
+
         fiber_flatfields = [None] * self.n_fibers
         self.fiber_flat_splines = [None] * self.n_fibers
+        self.fiber_mean_flux_center = [None] * self.n_fibers
+
+        normalized_master_flat = self.master_flat.copy()
 
         for fiber_id in range(self.n_fibers):
             # pick a fiber to work on
             fiberspec = self.flat_spectra[fiber_id]
+
+            #
+            # prepare a smoothing spline for each fiber to take out large-scale
+            # spectral variations
+            #
 
             # make sure we can parcel out the full-res spectra into
             # chunks of a given width
@@ -1585,17 +1609,65 @@ class BenchSpek(object):
                 y=rebinned_spec[good],
                 bc_type='natural'
             )
-            full_spline = spline(wl)
+            full_spline = spline(pixel)
 
             self.fiber_flat_splines[fiber_id] = spline
             fiber_flatfields[fiber_id] = full_spline
+
+            #
+            # Now let's apply a wavelength calibration so we can normalize
+            # each flatfield to the average intensity in the same wavelength range
+            #
+            center_pixels = numpy.polyval(
+                self.fiber_wavelength_solutions_inverse[fiber_id],
+                center_wl,
+            ) + self.raw_traces.midpoint_y
+            center_pixel_left = numpy.min(center_pixels).astype(int)
+            center_pixel_right = numpy.max(center_pixels).astype(int)
+            print(fiber_id, center_wl, center_pixels, center_pixel_left, center_pixel_right)
+            mean_flux = numpy.mean(fiberspec[center_pixel_left:center_pixel_right])
+            self.fiber_mean_flux_center[fiber_id] = mean_flux
 
             numpy.savetxt(
                 "fiberflat_%d.txt" % (fiber_id),
                 numpy.array([wl_padded, fiber_padded, spline(wl_padded)]).T
             )
 
-        self.fiber_flatfields = numpy.array(fiber_flatfields)
+            # self.master_flat
+            #
+            # normalize the master-flat to account for large-scale variations
+            #
+            mf = self.master_flat / full_spline.reshape((-1,1)) / mean_flux
+            fibermask = self.raw_traces.get_fiber_mask(self.master_flat, fiber_id)
+            normalized_master_flat[fibermask] = mf[fibermask]
+
+        self.master_flat_normalized = normalized_master_flat
+
+        # not sure if we actually need these here
+        # TODO: check
+        pyfits.PrimaryHDU(data=self.master_flat).writeto("masterflat_before.fits", overwrite=True)
+        pyfits.PrimaryHDU(data=normalized_master_flat).writeto("masterflat_after.fits", overwrite=True)
+        pyfits.PrimaryHDU(data=self.master_flat/normalized_master_flat).writeto("masterflat_xxx.fits", overwrite=True)
+
+        self.fiber_flatfields_smoothed_spline = numpy.array(fiber_flatfields)
+        self.fiber_mean_flux_center = numpy.array(self.fiber_mean_flux_center)
+        numpy.savetxt("fiber_mean_flux_center", self.fiber_mean_flux_center)
+
+        self.logger.debug("removing overall variations from flatfields to isolate pixel-to-pixel variations")
+        self.fiber_flatfield_pixel2pixel = self.flat_spectra / self.fiber_flatfields_smoothed_spline
+
+        pyfits.PrimaryHDU(data=self.flat_spectra).writeto(
+            "fiber_flatfield_raw.fits", overwrite=True)
+        pyfits.PrimaryHDU(data=self.fiber_flatfields_smoothed_spline).writeto(
+            "fiber_flatfield_smoothedspline.fits", overwrite=True)
+        pyfits.PrimaryHDU(data=self.fiber_flatfield_pixel2pixel).writeto(
+            "fiber_flatfield_pixel2pixel.fits", overwrite=True)
+
+        #
+        # Generate the average intensity around the middle of the spectral range
+        #
+        # _wl_range = pixel[-1] - pixel[0]
+        # _left = int(pixel[0] + 0.4 * _wl_range)
 
     def get_rectified_fiber_flatfields(self, filter_width=50):
         self.flat_fibers = self.rect_traces.extract_fiber_spectra(
