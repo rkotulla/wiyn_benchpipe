@@ -1084,6 +1084,12 @@ class BenchSpek(object):
             )
             self.fiber_wavelength_solutions[fiber_id] = fiber_wl_polyfit
 
+            fiber_wl_polyfit_inverse = numpy.polyfit(
+                y=line_pos[valid], x=line_wl[valid],
+                deg=self.wl_polyfit_order
+            )
+            self.fiber_wavelength_solutions_inverse[fiber_id] = fiber_wl_polyfit_inverse
+
             # for testing and verification, write out the spectrum including
             # wavelength calibration
             spec_y = numpy.arange(comp_spectra[fiber_id].shape[0]) - self.raw_traces.midpoint_y
