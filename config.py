@@ -1,0 +1,121 @@
+
+
+import json
+import logging
+import os
+
+class Config(object):
+
+    def __init__(self, config_fn):
+        if (not os.path.isfile(config_fn)):
+            raise OSError("Selected config file [%s] does not exist" % (config_fn))
+
+        self.logger = logging.getLogger("Config")
+
+        self.load_defaults()
+
+        self.config_fn = config_fn
+        self.logger.debug("Updating config from file %s" % (self.config_fn))
+        with open(self.config_fn, "r") as f:
+            conf = json.load(f)
+            self.update_config(conf)
+
+    def load_defaults(self):
+        self.logger.debug("Loading default values")
+        self.config = \
+            {
+                'raw_directory': '.',
+                'cals_directory': '.',
+                'bias': [],
+                'flat': [],
+                'comp': [],
+                'science': [],
+                'linelist': 'scidoc2212.fits',
+                'setup': {},
+                'output': {
+                    'min_wl': -1,
+                    'max_wl': -1,
+                    'dispersion': 0,
+                },
+            }
+        pass
+
+    def update_config(self, conf, *nested):
+        # print(type(nested), *nested)
+        nest = list(nested)
+        subnest = self.config
+        for n in nest:
+            if (n not in subnest):
+                subnest[n] = {}
+            subnest = subnest[n]
+
+
+        for key in conf:
+            # print(key)
+            value = conf[key]
+            if (type(value) in [str ,list ,int ,float]):
+                subnest[key] = value
+            elif (type(value) == dict):
+                # print("Adding subconfig: %s" % (key))
+                _nest = list(nest)
+                _nest.append(key)
+                self.update_config(value, *_nest)
+
+        #
+        pass
+
+    def get(self, *opts, fallback=None):
+        subnest = self.config
+        nest = list(opts)
+        found = None
+
+        for n in nest:
+            # print("checking ", n)
+            if (n not in subnest):
+                # print("not found")
+                break
+            elif (type(subnest[n]) != dict):
+                # print("found not dictionary")
+                found = subnest[n]
+                break
+            # print("found nested dictionary")
+            subnest = subnest[n]
+
+        if (found is None):
+            # nothing found yet
+            if (len(nest) > 1):
+                return self.get(*nest[1:], fallback=fallback)
+            else:
+                return fallback
+
+        return found
+        # subnest = subnest[n]
+
+        pass
+
+    def set(self, *nested):
+        _nested = list(nested)
+        nest = _nested[:-2]
+        key = _nested[-2]
+        value = _nested[-1]
+
+        self.logger.debug("Setting %s to %s" % ("->".join(_nested[:-1]), str(value)))
+
+        subnest = self.config
+        for n in nest:
+            if (n not in subnest):
+                subnest[n] = {}
+            subnest = subnest[n]
+
+        subnest[key] = value
+
+    def report(self, *opts):
+        value = self.get(*opts)
+        self.logger.info("Config for %s: " % (" -> ".join(list(opts))), value)
+
+    def write(self, filename=None):
+        txt = json.dumps(self.config, indent=5)
+        if (filename is not None):
+            with open(filename, "w") as f:
+                f.write(txt)
+        return txt
