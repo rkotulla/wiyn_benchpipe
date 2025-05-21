@@ -142,6 +142,12 @@ class GenericFiberSpecs(object):
 
         self.logger.info("All done tracing fibers")
 
+    def get_fiber_mask(self, imgdata, fiber_id):
+        iy, ix = numpy.indices(imgdata.shape)
+        in_this_fiber = (ix > self.fullres_left[:, fiber_id].reshape((-1, 1))) & (
+                ix <= self.fullres_right[:, fiber_id].reshape((-1, 1)))
+        return in_this_fiber
+
     def extract_fiber_spectra(self, imgdata, weights=None, vmin=0, vmax=75000, fibers=None, plot=False):
         # extract all fibers
         iy, ix = numpy.indices(imgdata.shape)
