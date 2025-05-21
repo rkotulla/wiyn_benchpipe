@@ -38,6 +38,10 @@ class Config(object):
                     'max_wl': -1,
                     'dispersion': 0,
                 },
+                'sky': {
+                    'fibers': 'minflux',
+                    'fluxrange': [6700, 6750]
+                }
             }
         pass
 
