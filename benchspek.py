@@ -77,25 +77,31 @@ class BenchSpek(object):
 
     def read_config(self):
         self.logger.info(self.json_file)
-        with open(self.json_file, "r") as f:
-            self.config = json.load(f)
-        if (self.raw_dir is None):
-            try:
-                self.raw_dir = self.config['raw_directory']
-            except:
-                self.raw_dir = "."
+        # with open(self.json_file, "r") as f:
+        #     self.config = json.load(f)
+        # if (self.raw_dir is None):
+        #     try:
+        #         self.raw_dir = self.config['raw_directory']
+        #     except:
+        #         self.raw_dir = "."
+        self.config = Config(self.json_file)
 
-        # ensure output directories exist
-        if (not os.path.isdir(self.config['cals_directory'])):
-            self.logger.info("Creating CALS directory: %s" % (self.config['cals_directory']))
-            os.makedirs(self.config['cals_directory'])
-        else:
-            self.logger.info("CALS directory (%s) exists" % (self.config['cals_directory']))
-        if (not os.path.isdir(self.config['out_directory'])):
-            self.logger.info("Creating OUTPUT directory: %s" % (self.config['out_directory']))
-            os.makedirs(self.config['output_directory'])
-        else:
-            self.logger.info("OUTPUT directory (%s) already exists" % (self.config['out_directory']))
+        # create all output directories
+        self.config.create_output_directories()
+
+        #
+        #
+        # # ensure output directories exist
+        # if (not os.path.isdir(self.config['cals_directory'])):
+        #     self.logger.info("Creating CALS directory: %s" % (self.config['cals_directory']))
+        #     os.makedirs(self.config['cals_directory'])
+        # else:
+        #     self.logger.info("CALS directory (%s) exists" % (self.config['cals_directory']))
+        # if (not os.path.isdir(self.config['out_directory'])):
+        #     self.logger.info("Creating OUTPUT directory: %s" % (self.config['out_directory']))
+        #     os.makedirs(self.config['output_directory'])
+        # else:
+        #     self.logger.info("OUTPUT directory (%s) already exists" % (self.config['out_directory']))
 
     def write_FITS(self, hdulist, filename, overwrite=True):
         self.logger.info("Writing FITS file (%s)" % (filename))
