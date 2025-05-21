@@ -28,7 +28,7 @@ import fibertraces
 from fibertraces import *
 from grating import *
 from spec_and_lines import SpecAndLines
-
+from config import Config
 
 import warnings
 #with warnings.catch_warnings():
@@ -108,11 +108,11 @@ class BenchSpek(object):
         hdulist.writeto(filename, overwrite=overwrite)
 
     def write_cals_FITS(self, hdulist, filename, **kwargs):
-        full_fn = os.path.join(self.config['cals_directory'], filename)
+        full_fn = os.path.join(self.config.get('cals_directory'), filename)
         self.write_FITS(hdulist, full_fn, **kwargs)
 
     def write_results_FITS(self, hdulist, filename, **kwargs):
-        full_fn = os.path.join(self.config['out_directory'], filename)
+        full_fn = os.path.join(self.config.get('out_directory'), filename)
         self.write_FITS(hdulist, full_fn, **kwargs)
 
     def basic_reduction(self, filelist, bias=None, flat=None, op=numpy.mean):
@@ -143,7 +143,7 @@ class BenchSpek(object):
     def make_master_bias(self, save=None):
         self.logger.info("Creating master bias")
         self.master_bias, _ = self.basic_reduction(
-            filelist=self.config['bias'],
+            filelist=self.config.get('bias'),
             bias=None, flat=None, op=numpy.median)
         print(self.master_bias.shape)
         if (save is not None):
@@ -154,7 +154,7 @@ class BenchSpek(object):
     def make_master_flat(self, save=None):
         self.logger.info("Creating master flat")
         _list = []
-        for fn in self.config['flat']:
+        for fn in self.config.get('flat'):
             _fn = os.path.join(self.raw_dir, fn)
             hdulist = pyfits.open(_fn)
             data = hdulist[0].data.astype(float)
@@ -181,7 +181,7 @@ class BenchSpek(object):
     def make_master_comp(self, save=None):
         self.logger.info("Creating master comp")
         self.master_comp, self.comp_header = self.basic_reduction(
-            filelist=self.config['comp'],
+            filelist=self.config.get('comp'),
             bias=self.master_bias, flat=self.master_flat,
             op=numpy.median
         )
@@ -194,7 +194,7 @@ class BenchSpek(object):
 
 
     def read_reference_linelist(self):
-        opt = self.config['linelistx']
+        opt = self.config.get('linelistx')
         linelist = []
         if (opt.endswith(".fits")):
             # read file, identify lines
@@ -457,7 +457,7 @@ class BenchSpek(object):
     def find_reflines_from_spec(self, ref_spec_fn=None, sci_sigma=None, wl_min=None, wl_max=None):
 
         if (ref_spec_fn is None):
-            ref_spec_fn = self.config['linelist'] # "scidoc2212.fits"
+            ref_spec_fn = self.config.get('linelist') # "scidoc2212.fits"
         self.logger.debug("Reading wavelength reference spectrum from %s" % (ref_spec_fn))
         hdu = pyfits.open(ref_spec_fn)
         s = hdu[0].data
@@ -588,13 +588,13 @@ class BenchSpek(object):
 
         self.logger.info("Finding wavelength solution")
 
-        if (lambda_central is None):
-            lambda_central = self.get_config('setup', 'central_wavelength')
-        if (dispersion is None):
-            dispersion = self.get_config('setup', 'dispersion')
+        # if (lambda_central is None):
+        #     lambda_central = self.config.get('setup', 'central_wavelength')
+        # if (dispersion is None):
+        #     dispersion = self.config.get('setup', 'dispersion')
 
         # print("spec shape:", spec.shape)
-        self.logger.info("User solution: central wavelength: %.3f; dispersion: %.4f" % (lambda_central, dispersion))
+        # self.logger.info("User solution: central wavelength: %.3f; dispersion: %.4f" % (lambda_central, dispersion))
 
         self.logger.info("Getting approximate wavelength solution from grating setup")
         self.grating_solution = grating_from_header(self.comp_header)
@@ -1449,9 +1449,9 @@ class BenchSpek(object):
 
         self.logger.info("Generating output wavelength grid")
         wl_axis = self.get_wavelength_axis(
-            output_min_wl=self.config['output']['min_wl'],
-            output_max_wl=self.config['output']['max_wl'],
-            output_dispersion=self.config['output']['dispersion']
+            output_min_wl=self.config.get('output','min_wl'),
+            output_max_wl=self.config.get('output', 'max_wl'),
+            output_dispersion=self.config.get('output', 'dispersion')
         )
         self.output_wavelength_axis = wl_axis
 
@@ -1462,9 +1462,9 @@ class BenchSpek(object):
             rf = self.wavelength_calibrate_from_raw_trace(
                 spec=self.comp_spectra[fiber_id],
                 wavelength_solution=self.fiber_wavelength_solutions[fiber_id],
-                output_min_wl=self.config['output']['min_wl'],
-                output_max_wl=self.config['output']['max_wl'],
-                output_dispersion=self.config['output']['dispersion'],
+                output_min_wl=self.config.get('output', 'min_wl'),
+                output_max_wl=self.config.get('output', 'max_wl'),
+                output_dispersion=self.config.get('output', 'dispersion'),
             )
             rect_comp.append(rf)
         rect_comp = numpy.array(rect_comp)
@@ -1487,9 +1487,9 @@ class BenchSpek(object):
             rf = self.wavelength_calibrate_from_raw_trace(
                 spec=flat_spectra[fiber_id],
                 wavelength_solution=self.fiber_wavelength_solutions[fiber_id],
-                output_min_wl=self.config['output']['min_wl'],
-                output_max_wl=self.config['output']['max_wl'],
-                output_dispersion=self.config['output']['dispersion'],
+                output_min_wl=self.config.get('output', 'min_wl'),
+                output_max_wl=self.config.get('output', 'max_wl'),
+                output_dispersion=self.config.get('output', 'dispersion'),
             )
             rect_flat.append(rf)
         rect_flat = numpy.array(rect_flat)
@@ -1897,9 +1897,11 @@ class BenchSpek(object):
 
     def reduce(self):
 
-        for target_name in self.get_config('science'):
+        for target_name in self.config.get('science'):
             self.logger.info("Starting reduction for target %s",  target_name)
-            filelist = self.get_config(target_name)
+            filelist = self.config.get(target_name, "files")
+            target_outdir = self.config.get(target_name, "output_directory")
+
             # make sure we always deal with lists, even if they only have one element
             if (not isinstance(filelist, list)):
                 filelist = [filelist]
@@ -1911,7 +1913,7 @@ class BenchSpek(object):
                 flat=None,
                 op=numpy.nanmedian
             )
-            __fn = "%s__combined.fits" % (target_name)
+            __fn = os.path.join(target_outdir, "%s__combined.fits" % (target_name))
             self.logger.info("Writing results for target '%s' to %s ..." % (target_name, __fn))
             pyfits.PrimaryHDU(data=target_combined, header=target_header).writeto(__fn, overwrite=True)
             # print(target_combined)
@@ -1937,14 +1939,14 @@ class BenchSpek(object):
                 rf = self.wavelength_calibrate_from_raw_trace(
                     spec=sci_spectra[fiber_id],
                     wavelength_solution=self.fiber_wavelength_solutions[fiber_id],
-                    output_min_wl=self.config['output']['min_wl'],
-                    output_max_wl=self.config['output']['max_wl'],
-                    output_dispersion=self.config['output']['dispersion'],
+                    output_min_wl=self.config.get('output', 'min_wl'),
+                    output_max_wl=self.config.get('output', 'max_wl'),
+                    output_dispersion=self.config.get('output', 'dispersion')
                 )
                 rect_sci_target.append(rf)
             rect_sci_target = numpy.array(rect_sci_target)
 
-            __fn = "%s_rectified_check.fits" % (target_name)
+            __fn = os.path.join(target_outdir, "%s_rectified_check.fits" % (target_name))
             self.logger.info("Writing extracted & calibrated spectra to %s" % (__fn))
             pyfits.PrimaryHDU(data=rect_sci_target).writeto(__fn, overwrite=True)
 
@@ -1970,7 +1972,7 @@ class BenchSpek(object):
                 if (plot):
                     skyscale, _, _, fig = final_master_sky_snl.match_amplitude(spec_snl, plot=True)
                     fig.suptitle("fiber %d // scale=%.5f" % (fiberid + 1, skyscale))
-                    fig.savefig('skymatch_%02d.png' % (fiberid + 1), dpi=200)
+                    fig.savefig(os.path.join(target_outdir, 'skymatch_%02d.png' % (fiberid + 1)), dpi=200)
                     plt.close(fig)
                 else:
                     skyscale, _, _ = final_master_sky_snl.match_amplitude(spec_snl, plot=False)
@@ -1978,7 +1980,7 @@ class BenchSpek(object):
                 sky_scalings.append(skyscale)
                 skysub_all[fiberid] = spec - final_master_sky_snl.contsub / skyscale
 
-            __fn = "%s_skysub.fits" % (target_name)
+            __fn = os.path.join(target_outdir, "%s_skysub.fits" % (target_name))
             self.logger.info("Writing sky-subtracted spectra to %s" % (__fn))
             # pyfits.PrimaryHDU(data=rect_sci_target).writeto(__fn, overwrite=True)
             pyfits.PrimaryHDU(data=skysub_all).writeto(__fn, overwrite=True)
