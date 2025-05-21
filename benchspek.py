@@ -1012,6 +1012,7 @@ class BenchSpek(object):
 
         self.fiber_inventories = {}
         self.fiber_wavelength_solutions = {}
+        self.fiber_wavelength_solutions_inverse = {}
 
         rect_poly = numpy.array([1., 0]) #pixel_offsets[fiber_id]])
 
@@ -1266,6 +1267,9 @@ class BenchSpek(object):
               for id in range(self.raw_traces.n_fibers)])
         _wl_min = numpy.nanmin(wl)
         _wl_max = numpy.nanmax(wl)
+        self.data_wl_min = _wl_min
+        self.data_wl_max = _wl_max
+
         self.logger.info("Calibrated wavelength range: %.3f ... %3f" % (_wl_min, _wl_max))
         # y0 = numpy.arange(spec.shape[0]) - self.raw_traces.midpoint_y
         # wl = numpy.polyval(wavelength_solution, y0)
