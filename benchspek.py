@@ -1906,6 +1906,16 @@ class BenchSpek(object):
             pyfits.PrimaryHDU(data=target_combined, header=target_header).writeto(__fn, overwrite=True)
             # print(target_combined)
 
+            # __fn = "%s__flat.fits" % (target_name)
+            # self.logger.info("Writing results for target '%s' to %s ..." % (target_name, __fn))
+            # pyfits.PrimaryHDU(data=self.master_flat_normalized, header=target_header).writeto(__fn, overwrite=True)
+            #
+            # # divide by normalized master flat
+            # target_combined = target_combined / self.master_flat_normalized
+            # __fn = "%s__normflatcorr.fits" % (target_name)
+            # self.logger.info("Writing results for target '%s' to %s ..." % (target_name, __fn))
+            # pyfits.PrimaryHDU(data=target_combined, header=target_header).writeto(__fn, overwrite=True)
+
             self.logger.info("Extracting trace spectra [target: %s]" % (target_name))
             sci_spectra = self.raw_traces.extract_fiber_spectra(
                 imgdata=target_combined, weights=self.master_flat)
@@ -1932,8 +1942,36 @@ class BenchSpek(object):
             sky_fiber_ids = []
 
             # TODO: Combine all sky-fibers into a master sky spectrum
+            fiber_snls = [None] * self.raw_traces.n_fibers
+            for fiber_id in range(self.raw_traces.n_fibers):
+                fiber_snls[fiber_id] = SpecAndLines(rect_sci_target[fiber_id])
+
+            sky_fiber_ids = numpy.array([22,16,2,37,54,80,70]) - 1
+            final_master_sky_snl = self.create_sky_spectrum(fiber_snls, sky_fiber_ids=sky_fiber_ids)
 
             # TODO: Subtract sky from each fiber: Option1: simple subtract; Option2: Fit optimal shift & amplitude
+            skysub_all = numpy.zeros_like(rect_sci_target)
+            rect_flattened = rect_sci_target
+            sky_scalings = []
+            plot=True
+            for fiberid in range(82):
+                spec = rect_flattened[fiberid]
+                spec_snl = SpecAndLines(spec)
+                if (plot):
+                    skyscale, _, _, fig = final_master_sky_snl.match_amplitude(spec_snl, plot=True)
+                    fig.suptitle("fiber %d // scale=%.5f" % (fiberid + 1, skyscale))
+                    fig.savefig('skymatch_%02d.png' % (fiberid + 1), dpi=200)
+                    plt.close(fig)
+                else:
+                    skyscale, _, _ = final_master_sky_snl.match_amplitude(spec_snl, plot=False)
+
+                sky_scalings.append(skyscale)
+                skysub_all[fiberid] = spec - final_master_sky_snl.contsub / skyscale
+
+            __fn = "%s_skysub.fits" % (target_name)
+            self.logger.info("Writing sky-subtracted spectra to %s" % (__fn))
+            # pyfits.PrimaryHDU(data=rect_sci_target).writeto(__fn, overwrite=True)
+            pyfits.PrimaryHDU(data=skysub_all).writeto(__fn, overwrite=True)
 
             continue
 
