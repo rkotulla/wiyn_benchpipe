@@ -1752,6 +1752,139 @@ class BenchSpek(object):
         phdu.writeto(output_filename, overwrite=True)
         #
 
+    def create_sky_spectrum(self, flattened_spec, sky_fiber_ids):
+        self.logger.info("Creating SKY spectrum")
+
+
+        # first, generate a mean sky
+        self.logger.debug("First, generate mean sky spectrum")
+        skies = numpy.array([
+            flattened_spec[_id].spec for _id in sky_fiber_ids
+        ])
+        rough_sky = numpy.median(skies, axis=0)
+        numpy.savetxt("rough_skies.txt", skies)
+        numpy.savetxt("rough_sky.txt", rough_sky)
+        rough_snl = SpecAndLines(rough_sky)
+
+        # next, match all individual spectra to the mean sky to achieve some common scaling
+        self.logger.debug("Deriving common scaling for all sky fibers")
+        scalings = []
+        sky_snl = []
+        for specid in sky_fiber_ids:  # [:1]:
+            #spec = rect_flattened[specid]
+            # sky_n_l = SpecAndLines(rect_flattened[specid])
+            scale, mfs, mfo, fig = rough_snl.match_amplitude(flattened_spec[specid], plot=True)
+            # print(scale)
+            scalings.append(scale)
+            sky_snl.append(SpecAndLines(flattened_spec[specid].spec / scale))
+
+        # create a master-sky, combined a mean continuum with a median line
+        self.logger.debug("Computing mean sky continuum spectrum")
+        conts = numpy.array([s.continuum for s in sky_snl])
+        master_cont = numpy.mean(conts, axis=0)
+        print(master_cont.shape)
+        #
+        # fig, ax = plt.subplots(figsize=(20, 4))
+        # for s in sky_snl:
+        #     ax.plot(wl, s.continuum, lw=1, alpha=0.5)
+        # ax.plot(wl, master_cont, lw=3, alpha=0.5)
+
+        # Now focus on sky lines
+        self.logger.debug("Refining sky line spectrum by clipping outliers")
+        matched_lines = numpy.array([s.contsub for s in sky_snl])
+        iter_lines = matched_lines.copy()
+        print(iter_lines.shape)
+        sigmas = []
+        for it in range(3):
+            _stats = numpy.nanpercentile(iter_lines, [16, 50, 84], axis=0)
+            # print(_stats.shape)
+            _med = _stats[1]
+            _sigma = 0.5 * (_stats[2] - _stats[0])
+            bad = (iter_lines > (_med + 3 * _sigma)) | (iter_lines < (_med - 3 * _sigma))
+            iter_lines[bad] = numpy.nan
+            sigmas.append(_sigma)
+        iter_lines_mean = numpy.nanmean(iter_lines, axis=0)
+
+        # master_lines = numpy.median(lines, axis=0)
+        # fig, ax = plt.subplots(figsize=(20, 4))
+        # for s in sky_snl:
+        #     ax.plot(wl, s.contsub, lw=1, alpha=0.5)
+        # ax.plot(wl, master_lines, lw=3, alpha=0.5)
+        # ax.set_ylim((-20, 400))
+        # ax.set_xlim((800, 1150))
+
+        # combine sky continuum and lines
+        master_sky_combined = master_cont + iter_lines_mean #  master_lines
+        master_sky_snl = SpecAndLines(master_sky_combined)
+
+
+        #
+        #
+        # # rescale all sky-spectra to yield a better median line spectrum
+        # match_sky_snl = []
+        # for specid, scale in zip(all_skyfibers_id, sky_scalings):
+        #     snl = SpecAndLines(rect_flattened[specid] * scale)
+        #     match_sky_snl.append(snl)
+        #
+        # matched_lines = numpy.array([s.contsub for s in match_sky_snl])
+        # master_lines_matched = numpy.median(matched_lines, axis=0)
+        #
+        # iter_lines = matched_lines.copy()
+        # print(iter_lines.shape)
+        # # valid = numpy.isfinite(matched_lines)
+        # sigmas = []
+        # for it in range(3):
+        #     _stats = numpy.nanpercentile(iter_lines, [16, 50, 84], axis=0)
+        #     #    if _stats: # is empty
+        #     #        break
+        #     print(_stats.shape)
+        #     _med = _stats[1]
+        #     _sigma = 0.5 * (_stats[2] - _stats[0])
+        #     bad = (iter_lines > (_med + 3 * _sigma)) | (iter_lines < (_med - 3 * _sigma))
+        #     iter_lines[bad] = numpy.nan
+        #     sigmas.append(_sigma)
+        # iter_lines_mean = numpy.nanmean(iter_lines, axis=0)
+        #
+        # fig, ax = plt.subplots(figsize=(20, 4))
+        # for s in match_sky_snl:
+        #     ax.plot(wl, s.contsub, lw=1, alpha=0.5)
+        # ax.plot(wl, master_lines_matched, lw=3, alpha=0.5)
+        # ax.plot(wl, iter_lines_mean, lw=3, alpha=0.5, c='red')
+        # ax.plot(wl, _sigma - 20, lw=1, alpha=0.5, c='red')
+        # ax.set_ylim((-50, 400))
+        # ax.set_xlim((800, 1150))
+        #
+        # # create a master-sky, combined a mean continuum with a median line
+        # matched_conts = numpy.array([s.continuum for s in match_sky_snl])
+        # master_cont_matched = numpy.mean(matched_conts, axis=0)
+        # print(master_cont_matched.shape)
+        #
+        # final_master_sky = master_cont_matched + master_lines_matched
+        # final_master_sky_snl = SpecAndLines(final_master_sky)
+        # fig, ax = plt.subplots(figsize=(20, 4))
+        # ax.plot(wl, final_master_sky)
+        # for s in all_skyfibers_id:
+        #     ax.plot(wl, rect_flattened[s], lw=1, alpha=0.3)
+        # ax.set_ylim((100, 1200))
+        #
+        # fig, ax = plt.subplots(figsize=(20, 4))
+        # ax.plot(wl, master_lines_matched)
+        # ax.plot(wl, iter_lines_mean)
+        # ax.set_ylim((-20, 200))
+        # ax.set_xlim((850, 1500))
+        #
+        # fig, ax = plt.subplots(figsize=(20, 4))
+        # for s in sigmas:
+        #     ax.plot(wl, s, lw=0.5)
+        # ax.set_ylim((0, 60))
+        #
+
+        return master_sky_snl
+        # lastly, generate the actual master sky template
+
+
+
+
     def reduce(self):
 
         for target_name in self.get_config('science'):
