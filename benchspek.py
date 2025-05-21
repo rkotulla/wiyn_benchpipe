@@ -27,6 +27,8 @@ from specutils.manipulation import FluxConservingResampler, LinearInterpolatedRe
 import fibertraces
 from fibertraces import *
 from grating import *
+from spec_and_lines import SpecAndLines
+
 
 import warnings
 #with warnings.catch_warnings():
