@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 class GenericFiberSpecs(object):
 
     n_fibers = -1
+    sky_fiber_ids = None
 
     def __init__(self, logger=None):
         if (self.n_fibers < 0):
@@ -214,9 +215,17 @@ class GenericFiberSpecs(object):
         else:
             return numpy.mean(self.fullres_centers[:, fiber_id])
 
+    def get_sky_fiber_ids(self):
+        if (self.sky_fiber_ids is not None):
+            return self.sky_fiber_ids
+        raise ValueError("No sky fiber IDs defined")
 
 
 class SparsepakFiberSpecs( GenericFiberSpecs ):
     n_fibers = 82
+
+    _sky_fibers = [22, 16, 2, 37, 54, 80, 70]
+    sky_fiber_ids = numpy.array(_sky_fibers, dtype=int) - 1
+
     pass
 
