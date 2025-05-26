@@ -1958,7 +1958,7 @@ class BenchSpek(object):
             for fiber_id in range(self.raw_traces.n_fibers):
                 fiber_snls[fiber_id] = SpecAndLines(rect_sci_target[fiber_id])
 
-            sky_fiber_ids = numpy.array([22,16,2,37,54,80,70]) - 1
+            sky_fiber_ids = self.raw_traces.get_sky_fiber_ids()
             final_master_sky_snl = self.create_sky_spectrum(fiber_snls, sky_fiber_ids=sky_fiber_ids)
 
             # TODO: Subtract sky from each fiber: Option1: simple subtract; Option2: Fit optimal shift & amplitude
