@@ -1981,6 +1981,14 @@ class BenchSpek(object):
             # for human verification, extract and rectify all comp spectra
             self.logger.info("Appying wavelength calibrating to extracted spectra")
             rect_sci_target = []
+            target_wl = self.get_wavelength_axis(
+                wavelength_solution=self.fiber_wavelength_solutions,
+                output_min_wl=self.config.get(target_name, 'output', 'min_wl'),
+                output_max_wl=self.config.get(target_name, 'output', 'max_wl'),
+                output_dispersion=self.config.get(target_name, 'output', 'dispersion')
+
+            )
+
             for fiber_id in range(self.raw_traces.n_fibers):
                 rf = self.wavelength_calibrate_from_raw_trace(
                     spec=sci_spectra[fiber_id],
