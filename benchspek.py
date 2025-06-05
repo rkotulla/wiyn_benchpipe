@@ -1917,6 +1917,29 @@ class BenchSpek(object):
         fibers = fiber_id[flux_sort[:n_fibers]]
         return fibers
 
+    def write_wavelength_calibrated_image(self, data, wl, filename):
+
+        phdu = pyfits.PrimaryHDU(data=data)
+        # TODO: initialize header with header keywords from input file
+
+        # define the actual wavelength axis
+        hdr = phdu.header
+        hdr['CTYPE1'] = 'WAVE'
+        hdr['CRPIX1'] = 1
+        hdr['CRVAL1'] = wl[0]*1e-10
+        hdr['CD1_1'] = (wl[1]-wl[0])*1e-10
+        hdr['CDELT1'] = (wl[1]-wl[0])*1e-10
+
+        # also define a linear scale denoting the fiber number
+        hdr['CTYPE2'] = "LINEAR"
+        hdr['CRVAL2'] = 1
+        hdr['CRPIX2'] = 1
+        hdr['CDELT2'] = 1
+        hdr['CD2_2'] = 1
+
+        phdu.writeto(filename, overwrite=True)
+        self.logger.debug("done writing wavelength-calibrated image to %s" % (filename))
+
 
     def reduce(self):
 
@@ -1981,7 +2004,24 @@ class BenchSpek(object):
             for fiber_id in range(self.raw_traces.n_fibers):
                 fiber_snls[fiber_id] = SpecAndLines(rect_sci_target[fiber_id])
 
-            sky_fiber_ids = self.raw_traces.get_sky_fiber_ids()
+            sky_mode = self.config.get(target_name, "sky", "mode")
+            self.logger.debug("raw sky mode: %s" % (sky_mode))
+            if (sky_mode == 'default'):
+                self.logger.info("Using DEFAULT sky mode for target %s" % (target_name))
+                sky_fiber_ids = self.raw_traces.get_sky_fiber_ids()
+            elif (sky_mode == 'custom'):
+                _fibers = self.config.get(target_name, "sky", "fibers")
+                sky_fiber_ids = numpy.array([int(f) - 1 for f in _fibers])
+                self.logger.info("Using CUSTOM sky fibers for target %s (%s)" % (
+                    target_name, ", ".join(["%d" % (f+1) for f in sky_fiber_ids])))
+            elif (sky_mode == "minflux"):
+                n_fibers = self.config.get(target_name, "sky", "fibers")
+                wl_range = self.config.get(target_name, "sky", "window")
+                sky_fiber_ids = self.select_lowflux_fibers(rect_sci_target, target_wl, wl_range, n_fibers)
+
+            self.logger.info("Creating sky template for %s from fibers %s" % (
+                target_name, ", ".join(["%d" % (f+1) for f in sky_fiber_ids])
+            ))
             final_master_sky_snl = self.create_sky_spectrum(fiber_snls, sky_fiber_ids=sky_fiber_ids)
 
             # TODO: Subtract sky from each fiber: Option1: simple subtract; Option2: Fit optimal shift & amplitude
