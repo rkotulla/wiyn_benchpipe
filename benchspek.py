@@ -1288,6 +1288,9 @@ class BenchSpek(object):
 
         n_wl_points = int(((output_max_wl - output_min_wl) / output_dispersion)) + 1
         out_wl_points = numpy.arange(n_wl_points, dtype=float) * output_dispersion + output_min_wl
+        self.logger.debug("Setting output wavelength grid: %d data points, final range %.2f -- %.2f" % (
+            n_wl_points, output_min_wl, output_max_wl
+        ))
 
         return out_wl_points
 
