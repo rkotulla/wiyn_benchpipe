@@ -320,7 +320,7 @@ class BenchSpek(object):
         # thresholds = numpy.array([20,5,2]) * _sigma
         for iteration, threshold in enumerate(thresholds):  # range(5):
 
-            self.logger.debug("\n"+"*" * 25 + "\n\n   ITERATION %d\n\n" % (iteration + 1) + "*" * 25)
+            # self.logger.debug("\n"+"*" * 25 + "\n\n   ITERATION %d\n\n" % (iteration + 1) + "*" * 25)
             added_new_line = False
 
             gf = numpy.zeros_like(contsub, dtype=float)
@@ -539,7 +539,9 @@ class BenchSpek(object):
         ax.set_ylim((0, 2e4))
 
         ax.set_xlim((6500, 6600))
-        ax.set_xlim((6000, 7000))
+        ax.set_xlim((6400, 6900))
+        # TODO: automatically adjust range to match actual covered range, plus some margins
+
         ax.set_ylim((0, 5e4))
 
         # sel_wl = refpeaks_wl[(refpeaks_wl > 6350) & (refpeaks_wl < 6480) ]
@@ -697,9 +699,14 @@ class BenchSpek(object):
             data=ref2d
         )
 
+        #lambda_central = 6573.56
+        #dispersion = -0.31386
+
         # scan the range
         var_wl, n_wl = 0.002, 100
         var_disp, n_disp = 0.05, 100
+        # var_wl, n_wl = 0.002, 11
+        # var_disp, n_disp = 0.02, 11
         scan_wl = numpy.linspace(lambda_central * (1. - var_wl), lambda_central * (1 + var_wl), n_wl)
         scan_disp = numpy.linspace(dispersion * (1. - var_disp), dispersion * (1. + var_disp), n_disp)
         self.logger.debug("Scanned central wavelength range: %.3f ... %.3f" % (scan_wl[0], scan_wl[-1]))
@@ -845,6 +852,9 @@ class BenchSpek(object):
         plot_fn = "wavelength_solution_details_initial.png"
         self.make_wavelength_calibration_overview_plot(spec, best_fit, plot_fn=plot_fn)
         for iteration in range(5):
+            # TODO: change back to 5, or even better, keep going until
+            #  no more changes are detected
+
             # now we have line positions in pixels and wavelength in A, let's fit
             polyfit = numpy.polyfit(x=comp_peaks_px[use_in_final_fit],
                                     y=ref_wl_refined[use_in_final_fit],
@@ -944,7 +954,7 @@ class BenchSpek(object):
         matched_comp_wl = numpy.polyval(wavelength_solution, matched_comp_px)
         if (used_in_fit is None):
             used_in_fit = numpy.isfinite(matched_comp_wl)
-            print("Assuming all points were used_in_fit")
+            # print("Assuming all points were used_in_fit")
         comp_wl_full = numpy.polyval(wavelength_solution, self.comp_spectrum_full_y0)
         # peaks_wl = numpy.polyval(wavelength_solution, peaks0)
 
@@ -1245,11 +1255,11 @@ class BenchSpek(object):
             fullmap_y[y, :] = numpy.polyval(pfy, centered_ix[y, :])
 
         # calculate actual wavelength for each point
-        self.wavelength_mapping_2d = numpy.polyval(self.wavelength_solution, fullmap_y)
+        self.wavelength_mapping_2d = fullmap_y #numpy.polyval(self.wavelength_solution, fullmap_y)
 
         # fig, ax = plt.subplots()
         # ax.imshow(fullmap_y)
-        pyfits.PrimaryHDU(data=fullmap_y).writeto("full_ymapping.fits", overwrite=True)
+        # pyfits.PrimaryHDU(data=fullmap_y).writeto("full_ymapping.fits", overwrite=True)
         pyfits.PrimaryHDU(data=self.wavelength_mapping_2d).writeto("full_wlmapping.fits", overwrite=True)
 
         return self.wavelength_mapping_2d
@@ -1266,11 +1276,15 @@ class BenchSpek(object):
         if (wavelength_solution is None):
             wavelength_solution = self.wavelength_solution
 
-        y,x = numpy.indices((self.raw_traces.n_fibers, self.comp_spectra[0].shape[0]), dtype=float)
+        _,y = numpy.indices((self.raw_traces.n_fibers, self.comp_spectra[0].shape[0]), dtype=float)
         # print(y.shape, x.shape)
         y0 = y - self.raw_traces.midpoint_y
         wl = numpy.array([numpy.polyval(self.fiber_wavelength_solutions[id], y0[id])
               for id in range(self.raw_traces.n_fibers)])
+        numpy.savetxt("wl_range_info", wl)
+        pyfits.PrimaryHDU(data=wl).writeto("reident_wl.fits", overwrite=True)
+        pyfits.PrimaryHDU(data=y).writeto("reident_y.fits", overwrite=True)
+
         _wl_min = numpy.nanmin(wl)
         _wl_max = numpy.nanmax(wl)
         self.data_wl_min = _wl_min
@@ -1293,6 +1307,7 @@ class BenchSpek(object):
         ))
 
         return out_wl_points
+
 
 
     def wavelength_calibrate_from_raw_trace(
@@ -1381,13 +1396,13 @@ class BenchSpek(object):
 
         return rectified_2d
 
-    def get_config(self, *args, fallback=None):
-        config = self.config
-        for opt in args:
-            if opt not in config:
-                return fallback
-            config = config[opt]
-        return config
+    # def get_config(self, *args, fallback=None):
+    #     config = self.config
+    #     for opt in args:
+    #         if opt not in config:
+    #             return fallback
+    #         config = config[opt]
+    #     return config
 
     def calibrate(self, save=False):
 
@@ -1413,16 +1428,14 @@ class BenchSpek(object):
         #     weights=self.master_flat,
         # )
 
+        # self.reidentify_lines(None, ref_fiberid=45)
+        # return
+
         # self.flat_spectra = self.extract_spectra_raw(imgdata=self.master_flat, weights=self.master_flat)
         self.flat_spectra = self.raw_traces.extract_fiber_spectra(
             imgdata=self.master_flat, weights=self.master_flat)
         # print("flat_spectra.shape", self.flat_spectra.shape)
         # numpy.savetxt("flat_spectra2.dat", self.flat_spectra)
-
-        fiberflats = self.get_fiber_flatfields()
-        pyfits.PrimaryHDU(data=self.fiber_flatfields).writeto("fiber_flatfields.fits", overwrite=True)
-
-        return
 
         self.logger.info("Extracting fiber spectra from master comp")
         # self.comp_spectra = self.extract_spectra_raw(imgdata=self.master_comp, weights=self.master_flat)
@@ -1456,6 +1469,7 @@ class BenchSpek(object):
             output_max_wl=self.config.get('output', 'max_wl'),
             output_dispersion=self.config.get('output', 'dispersion')
         )
+        print(wl_axis)
         self.output_wavelength_axis = wl_axis
 
         # for human verification, extract and rectify all comp spectra
@@ -1498,7 +1512,7 @@ class BenchSpek(object):
         rect_flat = numpy.array(rect_flat)
         pyfits.PrimaryHDU(data=rect_flat).writeto("rect_flat.fits", overwrite=True)
 
-        fiberflats = self.get_fiber_flatfields()
+        # fiberflats = self.get_fiber_flatfields()
 
         rectify = False
         if (rectify):
@@ -1557,7 +1571,7 @@ class BenchSpek(object):
 
             self.get_fiber_flatfields()
 
-        sys.exit(0)
+        #sys.exit(0)
 
 
     def prepare_fiber_flatfields(self, filter_width=50):
@@ -1770,7 +1784,7 @@ class BenchSpek(object):
 
 
         # first, generate a mean sky
-        self.logger.debug("First, generate mean sky spectrum")
+        self.logger.debug("First, generate mean sky spectrum (%s)" % (str(sky_fiber_ids)))
         skies = numpy.array([
             flattened_spec[_id].spec for _id in sky_fiber_ids
         ])
