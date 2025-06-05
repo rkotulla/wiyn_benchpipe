@@ -39,8 +39,9 @@ class Config(object):
                     'dispersion': 0,
                 },
                 'sky': {
+                    'mode': 'default',
                     'fibers': 'minflux',
-                    'fluxrange': [6700, 6750]
+                    'wlrange': [6700, 6750]
                 }
             }
         pass
