@@ -1896,6 +1896,26 @@ class BenchSpek(object):
         # lastly, generate the actual master sky template
 
 
+    def select_lowflux_fibers(self, sci_rect, wl, wl_range, n_fibers):
+        self.logger.info("Finding %d lowest-flux fibers"  % (n_fibers))
+
+        # identify which rectified points are within the selected range
+        in_wl_range = (wl >= wl_range[0]) & (wl <= wl_range[1])
+        idx_in_range = numpy.arange(wl.shape[0])[in_wl_range]
+        wl_idx_left = numpy.min(idx_in_range)
+        wl_idx_right = numpy.min([numpy.max(idx_in_range) + 1, wl.shape[0]])
+
+        # compute average flux in this range
+        fluxes = numpy.nanmean(sci_rect[:, wl_idx_left:wl_idx_right], axis=1)
+        print("fluxes-shape:", fluxes.shape)
+
+        # sort fluxes
+        flux_sort = numpy.argsort(fluxes)
+
+        # determine IDs of N lowest-flux fibers
+        fiber_id = numpy.arange(sci_rect.shape[1])
+        fibers = fiber_id[flux_sort[:n_fibers]]
+        return fibers
 
 
     def reduce(self):
