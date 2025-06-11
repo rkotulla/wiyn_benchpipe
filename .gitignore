@@ -1,0 +1,5 @@
+*.log
+src/wiyn_benchpipe.egg-info/
+src/wiyn_benchpipe/__pycache__/
+.idea/
+build/

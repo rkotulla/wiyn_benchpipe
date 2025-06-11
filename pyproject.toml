@@ -1,0 +1,49 @@
+[build-system]
+requires = [
+    "setuptools>=64.0.0",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wiyn_benchpipe"
+version = "0.0.1"
+
+authors = [
+  { name="Ralf Kotulla", email="ralf.kotulla@gmail.com" },
+]
+description = "data reduction pipeline for the WIYN bench spectrograph"
+readme = "README.md"
+license = { text = "BSD-3-Clause" }
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "astropy",
+    "matplotlib",
+    "multiparlog==1.0.9",
+    "numpy",
+    "pandas",
+    "scipy",
+    "specutils",
+    "multiparlog"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/rkotulla/wiyn_benchpipe"
+"Bug Tracker" = "https://github.com/rkotulla/wiyn_benchpipe/issues"
+
+[project.scripts]
+wiyn_benchpipe = "wiyn_benchpipe.executables:wiyn_benchpipe"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ['src']
+
+[tool.setuptools.package-data]
+"wiyn_benchpipe.data" = ["*.fits"]

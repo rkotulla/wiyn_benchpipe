@@ -2,33 +2,24 @@
 
 import argparse
 import os
-import sys
-import astropy.io.fits as pyfits
-import json
 import scipy.ndimage
 
-import numpy
 import scipy
 import scipy.signal
 import scipy.ndimage
 import scipy.interpolate
 import scipy.optimize
-import sklearn
-import matplotlib.pyplot as plt
-import glob
-import pandas
 import itertools
-import logging
 
 from specutils import Spectrum1D
 import astropy.units as u
-from specutils.manipulation import FluxConservingResampler, LinearInterpolatedResampler, SplineInterpolatedResampler
+from specutils.manipulation import FluxConservingResampler
 
-import fibertraces
-from fibertraces import *
-from grating import *
-from spec_and_lines import SpecAndLines
-from config import Config
+# from src.wiyn_benchpipe import fibertraces
+from .fibertraces import *
+from .grating import Grating, grating_from_header
+from .spec_and_lines import SpecAndLines
+from .config import Config
 
 import warnings
 #with warnings.catch_warnings():
