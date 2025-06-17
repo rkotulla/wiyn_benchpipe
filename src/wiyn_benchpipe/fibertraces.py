@@ -221,11 +221,11 @@ class GenericFiberSpecs(object):
         raise ValueError("No sky fiber IDs defined")
 
 
-class SparsepakFiberSpecs( GenericFiberSpecs ):
-    n_fibers = 82
-
-    _sky_fibers = [22, 16, 2, 37, 54, 80, 70]
-    sky_fiber_ids = numpy.array(_sky_fibers, dtype=int) - 1
-
-    pass
+# class SparsepakFiberSpecs( GenericFiberSpecs ):
+#     n_fibers = 82
+#
+#     _sky_fibers = [22, 16, 2, 37, 54, 80, 70]
+#     sky_fiber_ids = numpy.array(_sky_fibers, dtype=int) - 1
+#
+#     pass
 
