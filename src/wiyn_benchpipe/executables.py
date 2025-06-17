@@ -6,7 +6,7 @@ import multiparlog as mplog
 
 from .benchspek import BenchSpek
 
-def wiyn_benchpipe():
+def wiyn_benchpipe(cmdline_args):
 
     mplog.setup_logging(debug_filename="nirwals_debug.log",
                         log_filename="nirwals_reduce.log")
@@ -22,7 +22,7 @@ def wiyn_benchpipe():
                         type=str, default='setup.json')
     parser.add_argument('--rawdir', dest='raw_dir',
                         type=str, default='raw/')
-    args = parser.parse_args()
+    args = parser.parse_args(args=cmdline_args)
 
     benchspec = BenchSpek(args.config, args.raw_dir)
     # print(json.dumps(benchspec.config, indent=2))
