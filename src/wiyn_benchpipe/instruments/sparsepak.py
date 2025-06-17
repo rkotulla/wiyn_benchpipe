@@ -26,7 +26,7 @@ class SparsepakFiberSpecs( GenericFiberSpecs ):
     def coordinate_from_fiber_id(self, fiber_id):
         if (fiber_id < 0 or fiber_id > self.number_of_fibers ):
             raise ValueError("Invalid fiber ID (was %d, allowed range %d..%d" % (fiber_id, 0, self.n_fibers))
-        x, y = self.fiberpos[fiber_id - 1]suc
+        x, y = self.fiberpos[fiber_id - 1]
 
         cx, cy = self._offset_from_xy(x, y)
 
