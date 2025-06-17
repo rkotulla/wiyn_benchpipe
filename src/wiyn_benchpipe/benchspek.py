@@ -1923,9 +1923,9 @@ class BenchSpek(object):
         fibers = fiber_id[flux_sort[:n_fibers]]
         return fibers
 
-    def write_wavelength_calibrated_image(self, data, wl, filename):
+    def write_wavelength_calibrated_image(self, data, wl, filename, header=None):
 
-        phdu = pyfits.PrimaryHDU(data=data)
+        phdu = pyfits.PrimaryHDU(data=data, header=header)
         # TODO: initialize header with header keywords from input file
 
         # define the actual wavelength axis
@@ -1946,6 +1946,22 @@ class BenchSpek(object):
         phdu.writeto(filename, overwrite=True)
         self.logger.debug("done writing wavelength-calibrated image to %s" % (filename))
 
+    def gather_pointing_data(self, target_name, raw_traces, header):
+        pointing_mode = self.config.get(target_name, 'pointing', 'mode')
+        pointing_reference = self.config.get(target_name, 'pointing', 'reference')
+        ra = self.config.get(target_name, 'pointing', 'ra')
+        dec = self.config.get(target_name, 'pointing', 'dec')
+        rotation = self.config.get(target_name, 'pointing', 'rotation')
+        fiber_coords = raw_traces.sky_positions(
+            pointing_mode, pointing_reference, ra, dec, rotation)
+        return fiber_coords
+
+    def pointing_data_to_header(self, fiber_coords, header):
+        for fiberid in range(self.raw_traces.n_fibers):
+            coord = fiber_coords[fiberid]
+            header['F%03d_RA' % (fiberid+1)] = coord.ra.to(u.degree).value
+            header['F%03d_DEC'% (fiberid+1)] = coord.dec.to(u.degree).value
+
 
     def reduce(self):
 
@@ -1965,6 +1981,12 @@ class BenchSpek(object):
                 flat=None,
                 op=numpy.nanmedian
             )
+
+            pointing_data = self.gather_pointing_data(target_name, self.raw_traces, target_header)
+            self.pointing_data_to_header(pointing_data, target_header)
+
+            # positioning = self.raw_traces.
+
             __fn = os.path.join(target_outdir, "%s__combined.fits" % (target_name))
             self.logger.info("Writing results for target '%s' to %s ..." % (target_name, __fn))
             pyfits.PrimaryHDU(data=target_combined, header=target_header).writeto(__fn, overwrite=True)
@@ -2008,7 +2030,7 @@ class BenchSpek(object):
 
             __fn = os.path.join(target_outdir, "%s_rectified_check.fits" % (target_name))
             self.logger.info("Writing extracted & calibrated spectra to %s" % (__fn))
-            self.write_wavelength_calibrated_image(rect_sci_target, target_wl, __fn)
+            self.write_wavelength_calibrated_image(rect_sci_target, target_wl, __fn, target_header)
             # pyfits.PrimaryHDU(data=rect_sci_target).writeto(__fn, overwrite=True)
 
             # TODO: apply flatfielding
@@ -2060,7 +2082,7 @@ class BenchSpek(object):
 
             __fn = os.path.join(target_outdir, "%s_skysub.fits" % (target_name))
             self.logger.info("Writing sky-subtracted spectra to %s" % (__fn))
-            self.write_wavelength_calibrated_image(skysub_all, target_wl, __fn)
+            self.write_wavelength_calibrated_image(skysub_all, target_wl, __fn, target_header)
             # pyfits.PrimaryHDU(data=rect_sci_target).writeto(__fn, overwrite=True)
             # pyfits.PrimaryHDU(data=skysub_all).writeto(__fn, overwrite=True)
 
