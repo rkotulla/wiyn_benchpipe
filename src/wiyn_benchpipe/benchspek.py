@@ -24,7 +24,7 @@ from .instruments import *
 
 import warnings
 #with warnings.catch_warnings():
-print("Disabling warnings")
+#print("Disabling warnings")
 warnings.filterwarnings('ignore', r'All-NaN (slice|axis) encountered')
 warnings.filterwarnings('ignore', r'divide by zero encountered in divide')
 warnings.filterwarnings('ignore', r'invalid value encountered in divide')
