@@ -1949,10 +1949,25 @@ class BenchSpek(object):
 
     def gather_pointing_data(self, target_name, raw_traces, header):
         pointing_mode = self.config.get(target_name, 'pointing', 'mode')
+        if (pointing_mode is None):
+            self.logger.warning("No pointing data information found for target %s" % (target_name))
+            return None
+
         pointing_reference = self.config.get(target_name, 'pointing', 'reference')
+        if (pointing_reference is None):
+            self.logger.warning("Missing pointing reference for target %s" % (target_name))
+            return None
+
         ra = self.config.get(target_name, 'pointing', 'ra')
         dec = self.config.get(target_name, 'pointing', 'dec')
-        rotation = self.config.get(target_name, 'pointing', 'rotation')
+        rotation = self.config.get(target_name, 'pointing', 'rotation', fallback=0)
+        if (ra is None or dec is None):
+            self.logger.warning("Missing reference coordinates (RA:%s, Dec:%s)" % (str(ra), str(dec)))
+            return None
+
+        self.logger.info("Pointing info for target %s: mode:%s ref:%s -- RA:%.5f DEC:%.5f rot=%.1f" % (
+            target_name, pointing_mode, pointing_reference, ra, dec, rotation
+        ))
         fiber_coords = raw_traces.sky_positions(
             pointing_mode, pointing_reference, ra, dec, rotation)
         return fiber_coords
@@ -1984,7 +1999,13 @@ class BenchSpek(object):
             )
 
             pointing_data = self.gather_pointing_data(target_name, self.raw_traces, target_header)
-            self.pointing_data_to_header(pointing_data, target_header)
+            # print(pointing_data)
+            # print(target_header)
+            if (pointing_data is None):
+                self.logger.warning("Unable to add pointing information to output headers")
+            else:
+                self.logger.info("Preparing pointing information for output headers")
+                self.pointing_data_to_header(pointing_data, target_header)
 
             # positioning = self.raw_traces.
 
