@@ -45,7 +45,10 @@ class SparsepakFiberSpecs( GenericFiberSpecs ):
         self.logger.info("Finding pointing positions: mode: %s, reference: %s" % (pointing_mode, str(pointing_reference)))
         if (pointing_mode == 'fiber'):
             ref_x, ref_y = self.fiberpos[pointing_reference]
+        elif (pointing_mode == 'pos'):
+            ref_x, ref_y = pointing_reference
         else:
+            self.logger.warning("Unknown pointing mode %s" % pointing_mode)
             ref_x, ref_y = pointing_reference
 
         reference_wcs = coord.SkyCoord(ra=ra*u.deg, dec=dec*u.deg)
