@@ -2088,7 +2088,7 @@ class BenchSpek(object):
             rect_flattened = rect_sci_target
             sky_scalings = []
             plot=True
-            for fiberid in range(82):
+            for fiberid in range(self.raw_traces.n_fibers):
                 spec = rect_flattened[fiberid]
                 spec_snl = SpecAndLines(spec)
                 if (plot):
