@@ -840,7 +840,7 @@ class BenchSpek(object):
 
         comp_peaks_px = peaks[matched] - self.comp_spectrum_center_y
         use_in_final_fit = numpy.isfinite(ref_wl_refined)
-        print("USE IN FIT", use_in_final_fit.shape)
+        # print("USE IN FIT", use_in_final_fit.shape)
         plot_fn = "wavelength_solution_details_initial.png"
         self.make_wavelength_calibration_overview_plot(spec, best_fit, plot_fn=plot_fn)
         for iteration in range(5):
@@ -862,13 +862,13 @@ class BenchSpek(object):
 
             _pm = peaks[matched]
             _rem = ref_wl_refined
-            print(_pm.shape, _rem.shape)
+            # print(_pm.shape, _rem.shape)
             plot_fn = "wavelength_solution_details_iteration%0d.png" % (iteration+1)
             self.make_wavelength_calibration_overview_plot(spec, polyfit, plot_fn=plot_fn, used_in_fit=use_in_final_fit)
 
         _pm = peaks[matched]
         _rem = ref_wl_refined
-        print(_pm.shape, _rem.shape)
+        # print(_pm.shape, _rem.shape)
 
         self.logger.debug("Generating final reference plot")
         # fig, axs = plt.subplots(nrows=2, figsize=(12, 8))
