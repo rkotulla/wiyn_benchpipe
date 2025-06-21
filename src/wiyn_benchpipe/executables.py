@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 
+import sys
 import logging
 import argparse
 import multiparlog as mplog
+import astropy.io.fits as pyfits
 
 from .benchspek import BenchSpek
 
-def wiyn_benchpipe(cmdline_args):
+def wiyn_benchpipe(cmdline_args=None):
+
+    if (cmdline_args is None):
+        cmdline_args = sys.argv[1:]
 
     mplog.setup_logging(debug_filename="nirwals_debug.log",
                         log_filename="nirwals_reduce.log")
