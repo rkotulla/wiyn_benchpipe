@@ -13,8 +13,8 @@ def wiyn_benchpipe(cmdline_args=None):
     if (cmdline_args is None):
         cmdline_args = sys.argv[1:]
 
-    mplog.setup_logging(debug_filename="nirwals_debug.log",
-                        log_filename="nirwals_reduce.log")
+    mplog.setup_logging(debug_filename="wiyn_benchpipe_debug.log",
+                        log_filename="wiyn_benchpipe_reduce.log")
     mpl_logger = logging.getLogger('matplotlib')
     mpl_logger.setLevel(logging.WARNING)
 
