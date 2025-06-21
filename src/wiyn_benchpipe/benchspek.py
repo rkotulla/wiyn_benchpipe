@@ -1012,7 +1012,7 @@ class BenchSpek(object):
         self.logger.debug("best fit dispersion: %.4f" % (best_fit_dispersion))
 
         pixel_offsets = central_wl_offset / best_fit_dispersion
-        print(pixel_offsets)
+        # print(pixel_offsets)
 
         # ref_fiber_positions = self.comp_line_inventory['gauss_center'].to_numpy()
         ref_fiber_positions = self.matched_line_inventory['comp_gauss_center'].to_numpy()
@@ -1461,7 +1461,7 @@ class BenchSpek(object):
             output_max_wl=self.config.get('output', 'max_wl'),
             output_dispersion=self.config.get('output', 'dispersion')
         )
-        print(wl_axis)
+        # print(wl_axis)
         self.output_wavelength_axis = wl_axis
 
         # for human verification, extract and rectify all comp spectra
@@ -1643,14 +1643,14 @@ class BenchSpek(object):
             ) + self.raw_traces.midpoint_y
             center_pixel_left = numpy.min(center_pixels).astype(int)
             center_pixel_right = numpy.max(center_pixels).astype(int)
-            print(fiber_id, center_wl, center_pixels, center_pixel_left, center_pixel_right)
+            # print(fiber_id, center_wl, center_pixels, center_pixel_left, center_pixel_right)
             mean_flux = numpy.mean(fiberspec[center_pixel_left:center_pixel_right])
             self.fiber_mean_flux_center[fiber_id] = mean_flux
 
-            numpy.savetxt(
-                "fiberflat_%d.txt" % (fiber_id),
-                numpy.array([wl_padded, fiber_padded, spline(wl_padded)]).T
-            )
+            # numpy.savetxt(
+            #     "fiberflat_%d.txt" % (fiber_id),
+            #     numpy.array([wl_padded, fiber_padded, spline(wl_padded)]).T
+            # )
 
             # self.master_flat
             #
@@ -1801,7 +1801,7 @@ class BenchSpek(object):
         self.logger.debug("Computing mean sky continuum spectrum")
         conts = numpy.array([s.continuum for s in sky_snl])
         master_cont = numpy.mean(conts, axis=0)
-        print(master_cont.shape)
+        # print(master_cont.shape)
         #
         # fig, ax = plt.subplots(figsize=(20, 4))
         # for s in sky_snl:
@@ -1812,7 +1812,7 @@ class BenchSpek(object):
         self.logger.debug("Refining sky line spectrum by clipping outliers")
         matched_lines = numpy.array([s.contsub for s in sky_snl])
         iter_lines = matched_lines.copy()
-        print(iter_lines.shape)
+        # print(iter_lines.shape)
         sigmas = []
         for it in range(3):
             _stats = numpy.nanpercentile(iter_lines, [16, 50, 84], axis=0)
@@ -1913,7 +1913,7 @@ class BenchSpek(object):
 
         # compute average flux in this range
         fluxes = numpy.nanmean(sci_rect[:, wl_idx_left:wl_idx_right], axis=1)
-        print("fluxes-shape:", fluxes.shape)
+        # print("fluxes-shape:", fluxes.shape)
 
         # sort fluxes
         flux_sort = numpy.argsort(fluxes)
