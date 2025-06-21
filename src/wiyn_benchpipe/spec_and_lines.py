@@ -88,11 +88,15 @@ class SpecAndLines(object):
 
         cs = self.contsub
         use = numpy.isfinite(cs)
+        _med, _sigma = 0, 0
         for i in range(3):
             _stats = numpy.nanpercentile(cs[use], [16, 50, 84])
-            _med = _stats[1]
-            _sigma = 0.5 * (_stats[2] - _stats[0])
-            use = use & (cs > _med - 3 * _sigma) & (cs < _med + 3 * _sigma)
+            try:
+                _med = _stats[1]
+                _sigma = 0.5 * (_stats[2] - _stats[0])
+                use = use & (cs > _med - 3 * _sigma) & (cs < _med + 3 * _sigma)
+            except IndexError:
+                break
         min_flux_self = _med + 2 * _sigma
 
         valid = valid & (self.contsub > min_flux_self) & (other.contsub > min_flux_other)
