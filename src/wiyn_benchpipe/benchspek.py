@@ -1937,11 +1937,12 @@ class BenchSpek(object):
         hdr['CDELT1'] = (wl[1]-wl[0])*1e-10
 
         # also define a linear scale denoting the fiber number
+        # Todo: Add this to the instrument definition for more flexibility
         hdr['CTYPE2'] = "LINEAR"
         hdr['CRVAL2'] = 1
-        hdr['CRPIX2'] = 1
-        hdr['CDELT2'] = 1
-        hdr['CD2_2'] = 1
+        hdr['CRPIX2'] = 82
+        hdr['CDELT2'] = -1
+        hdr['CD2_2'] = -1
 
         phdu.writeto(filename, overwrite=True)
         self.logger.debug("done writing wavelength-calibrated image to %s" % (filename))
