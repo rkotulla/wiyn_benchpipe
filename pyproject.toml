@@ -38,6 +38,7 @@ dependencies = [
 
 [project.scripts]
 wiyn_benchpipe = "wiyn_benchpipe.executables:wiyn_benchpipe"
+wiyn_benchpipe_region = "wiyn_benchpipe.executables:region_file_from_output"
 
 [tool.setuptools]
 include-package-data = true

@@ -12,6 +12,8 @@ except:
 
 if (command == "reduce"):
     wiyn_benchpipe(args[1:])
+elif (command == "region"):
+    region_file_from_output(args[1:])
 else:
     print("Unknown command %s" % (command))
 
