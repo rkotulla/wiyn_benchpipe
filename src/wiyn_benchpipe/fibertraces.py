@@ -220,6 +220,8 @@ class GenericFiberSpecs(object):
             return self.sky_fiber_ids
         raise ValueError("No sky fiber IDs defined")
 
+    def reorder_fibers(self, fiberspecs):
+        return fiberspecs.copy()
 
 # class SparsepakFiberSpecs( GenericFiberSpecs ):
 #     n_fibers = 82

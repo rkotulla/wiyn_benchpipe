@@ -62,4 +62,7 @@ class SparsepakFiberSpecs( GenericFiberSpecs ):
 
         return fiber_coords
 
+    def reorder_fibers(self, fiberspecs):
+        return fiberspecs[::-1, :]
+
     pass
