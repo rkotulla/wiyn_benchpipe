@@ -44,7 +44,7 @@ class SparsepakFiberSpecs( GenericFiberSpecs ):
     def sky_positions(self, pointing_mode, pointing_reference, ra, dec, rotation=0):
         self.logger.info("Finding pointing positions: mode: %s, reference: %s" % (pointing_mode, str(pointing_reference)))
         if (pointing_mode == 'fiber'):
-            ref_x, ref_y = self.fiberpos[pointing_reference]
+            ref_x, ref_y = self.fiberpos[pointing_reference - 1]
         elif (pointing_mode == 'pos'):
             ref_x, ref_y = pointing_reference
         else:
