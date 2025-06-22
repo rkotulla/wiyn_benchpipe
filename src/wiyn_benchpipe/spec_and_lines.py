@@ -160,3 +160,8 @@ class SpecAndLines(object):
             return weighted_scale, min_flux_self, min_flux_other, fig
 
         return weighted_scale, min_flux_self, min_flux_other
+
+
+    def dump(self, fn):
+        c = numpy.array([self.wl, self.spec, self.contsub, self.continuum]).T
+        numpy.savetxt(fn, c)
