@@ -1780,7 +1780,8 @@ class BenchSpek(object):
         skies = numpy.array([
             flattened_spec[_id].spec for _id in sky_fiber_ids
         ])
-        rough_sky = numpy.median(skies, axis=0)
+        pyfits.PrimaryHDU(data=skies).writeto("rough_skies.fits", overwrite=True)
+        rough_sky = numpy.nanmedian(skies, axis=0)
         numpy.savetxt("rough_skies.txt", skies)
         numpy.savetxt("rough_sky.txt", rough_sky)
         rough_snl = SpecAndLines(rough_sky)
@@ -1792,8 +1793,13 @@ class BenchSpek(object):
         for specid in sky_fiber_ids:  # [:1]:
             #spec = rect_flattened[specid]
             # sky_n_l = SpecAndLines(rect_flattened[specid])
-            scale, mfs, mfo, fig = rough_snl.match_amplitude(flattened_spec[specid], plot=True)
+            scale, mfs, mfo, fig = rough_snl.match_amplitude(flattened_spec[specid], plot=True) # TODO: CHECK
+            self.logger.debug("scaling single sky to mean sky: %f" % (scale))
             # print(scale)
+            if (not numpy.isfinite(scale) ):
+                self.logger.warning("Excluding fiber %d from mean sky spectrum" % (specid+1))
+                flattened_spec[specid].dump("problem_sky_spec_%03d.txt" % (specid+1))
+                continue
             scalings.append(scale)
             sky_snl.append(SpecAndLines(flattened_spec[specid].spec / scale))
 
@@ -2084,8 +2090,11 @@ class BenchSpek(object):
                 target_name, ", ".join(["%d" % (f+1) for f in sky_fiber_ids])
             ))
             final_master_sky_snl = self.create_sky_spectrum(fiber_snls, sky_fiber_ids=sky_fiber_ids)
+            __fn = os.path.join(target_outdir, "%s_skyspec.fits" % (target_name))
+            pyfits.PrimaryHDU(data=final_master_sky_snl.spec).writeto(__fn, overwrite=True)
 
             # TODO: Subtract sky from each fiber: Option1: simple subtract; Option2: Fit optimal shift & amplitude
+            self.logger.info("Fitting sky amplitude and performing sky subtraction for each spectrum")
             skysub_all = numpy.zeros_like(rect_sci_target)
             rect_flattened = rect_sci_target
             sky_scalings = []
@@ -2096,13 +2105,15 @@ class BenchSpek(object):
                 if (plot):
                     skyscale, _, _, fig = final_master_sky_snl.match_amplitude(spec_snl, plot=True)
                     fig.suptitle("fiber %d // scale=%.5f" % (fiberid + 1, skyscale))
-                    fig.savefig(os.path.join(target_outdir, 'skymatch_%02d.png' % (fiberid + 1)), dpi=200)
+                    fig.savefig(os.path.join(target_outdir, '%s__skymatch_%02d.png' % (target_name, fiberid + 1)), dpi=200)
                     plt.close(fig)
                 else:
                     skyscale, _, _ = final_master_sky_snl.match_amplitude(spec_snl, plot=False)
 
                 sky_scalings.append(skyscale)
+                self.logger.debug("Sky scaling -- fiber %d: %f" % (fiberid, skyscale))
                 skysub_all[fiberid] = spec - final_master_sky_snl.contsub / skyscale
+            self.logger.info("Sky scalings:\n%s" % (" ".join(["%7.3f" % s for s in sky_scalings])))
 
             __fn = os.path.join(target_outdir, "%s_skysub.fits" % (target_name))
             self.logger.info("Writing sky-subtracted spectra to %s" % (__fn))
