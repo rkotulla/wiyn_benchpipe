@@ -5,8 +5,10 @@ import logging
 import argparse
 import multiparlog as mplog
 import astropy.io.fits as pyfits
+import astropy.units as u
 
 from .benchspek import BenchSpek
+from .instruments import *
 
 def wiyn_benchpipe(cmdline_args=None):
 
@@ -66,3 +68,69 @@ fk5""", file=reg)
                 print("error",e)
 
                 break
+
+
+
+def sparsepak_simulator(cmdline_args=None):
+
+    if (cmdline_args is None):
+        cmdline_args = sys.argv[1:]
+
+    mplog.setup_logging(debug_filename="wiyn_benchpipe_debug.log",
+                        log_filename="wiyn_benchpipe_reduce.log")
+    mpl_logger = logging.getLogger('matplotlib')
+    mpl_logger.setLevel(logging.WARNING)
+
+    logger = logging.getLogger("SparsePakSimulator")
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ra', dest='ra', type=float)
+    parser.add_argument('--dec', dest='dec', type=float)
+    parser.add_argument('--ref', dest='ref', type=str)
+    parser.add_argument('--mode', dest='mode', type=str)
+    parser.add_argument('--ds9', dest='ds9', type=str)
+    parser.add_argument('--label', dest='label', action='store_true', default=False)
+    args = parser.parse_args(args=cmdline_args)
+
+    pointing_mode = args.mode
+    pointing_reference = args.ref
+    ra = args.ra
+    dec = args.dec
+
+    if (pointing_reference is None):
+        logger.warning("Missing pointing reference")
+        return None
+    if (pointing_mode is None):
+        logger.warning("No pointing data information found")
+        return None
+    elif (pointing_mode == 'fiber'):
+        pointing_reference = int(args.ref)
+    elif (pointing_mode == "pos"):
+        pointing_reference = [float(x) for x in args.ref.split(",")]
+
+    rotation = 0
+    if (ra is None or dec is None):
+        logger.warning("Missing reference coordinates (RA:%s, Dec:%s)" % (str(ra), str(dec)))
+        return None
+
+    logger.info("Pointing info == mode:%s ref:%s -- RA:%.5f DEC:%.5f rot=%.1f" % (
+        pointing_mode, pointing_reference, ra, dec, rotation
+    ))
+    raw_traces = SparsepakFiberSpecs()
+    fiber_coords = raw_traces.sky_positions(
+        pointing_mode, pointing_reference, ra, dec, rotation)
+
+    with open(args.ds9, mode='w') as ds9_file:
+        print("""\
+# Region file format: DS9 version 4.1
+global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
+fk5""", file=ds9_file)
+        for fiber,coord in enumerate(fiber_coords):
+            ra = coord.ra.to(u.degree).value
+            dec = coord.dec.to(u.degree).value
+            print("""circle(%f,%f,2.8")""" % (ra, dec), file=ds9_file)
+            if (args.label):
+                print("""# text(%f,%f) text={%d}""" % (ra, dec, fiber+1), file=ds9_file)
+
+
+    #print(fiber_coords)
+
