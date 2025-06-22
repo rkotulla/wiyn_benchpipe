@@ -1940,9 +1940,9 @@ class BenchSpek(object):
         # Todo: Add this to the instrument definition for more flexibility
         hdr['CTYPE2'] = "LINEAR"
         hdr['CRVAL2'] = 1
-        hdr['CRPIX2'] = 82
-        hdr['CDELT2'] = -1
-        hdr['CD2_2'] = -1
+        hdr['CRPIX2'] = 1
+        hdr['CDELT2'] = 1
+        hdr['CD2_2'] = 1
 
         phdu.writeto(filename, overwrite=True)
         self.logger.debug("done writing wavelength-calibrated image to %s" % (filename))
