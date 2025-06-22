@@ -2052,7 +2052,9 @@ class BenchSpek(object):
 
             __fn = os.path.join(target_outdir, "%s_rectified_check.fits" % (target_name))
             self.logger.info("Writing extracted & calibrated spectra to %s" % (__fn))
-            self.write_wavelength_calibrated_image(rect_sci_target, target_wl, __fn, target_header)
+            self.write_wavelength_calibrated_image(
+                self.raw_traces.reorder_fibers(rect_sci_target),
+                target_wl, __fn, target_header)
             # pyfits.PrimaryHDU(data=rect_sci_target).writeto(__fn, overwrite=True)
 
             # TODO: apply flatfielding
@@ -2104,7 +2106,9 @@ class BenchSpek(object):
 
             __fn = os.path.join(target_outdir, "%s_skysub.fits" % (target_name))
             self.logger.info("Writing sky-subtracted spectra to %s" % (__fn))
-            self.write_wavelength_calibrated_image(skysub_all, target_wl, __fn, target_header)
+            self.write_wavelength_calibrated_image(
+                self.raw_traces.reorder_fibers(skysub_all),
+                target_wl, __fn, target_header)
             # pyfits.PrimaryHDU(data=rect_sci_target).writeto(__fn, overwrite=True)
             # pyfits.PrimaryHDU(data=skysub_all).writeto(__fn, overwrite=True)
 
