@@ -60,7 +60,7 @@ class SparsepakFiberSpecs( GenericFiberSpecs ):
             rel_y = raw_y - ref_y
             cx,cy = self._offset_from_xy(rel_x, rel_y)
 
-            ra_dec = reference_wcs.spherical_offsets_by(cx*u.arcsec, cy*u.arcsec)
+            ra_dec = reference_wcs.spherical_offsets_by(cx*u.arcsec, -cy*u.arcsec)
             fiber_coords.append(ra_dec)
 
         return fiber_coords
