@@ -106,7 +106,9 @@ class SpecAndLines(object):
         # print(numpy.nanmean(scale), weighted_scale)
         # scale = other_fm / self_fm
         scale = self_fm / other_fm
-        weighted_scale = numpy.sum((scale * self_fm)[valid]) / numpy.sum(self_fm[valid])
+        valid = valid & (numpy.isfinite(scale))
+
+        weighted_scale = numpy.nansum((scale * self_fm)[valid]) / numpy.nansum(self_fm[valid])
 
         if (plot):
             _xlim = (750, 2550)
