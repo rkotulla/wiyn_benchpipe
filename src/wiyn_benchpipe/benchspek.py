@@ -110,7 +110,6 @@ class BenchSpek(object):
         full_fn = os.path.join(self.config.get('out_directory'), filename)
         self.write_FITS(hdulist, full_fn, **kwargs)
 
-    def basic_reduction(self, filelist, bias=None, flat=None, op=numpy.mean):
     def get_cosmic_ray_rejection_options(self, target_name):
         cosmics = self.config.get(target_name, "cosmics", "clean", fallback=None)
         if (cosmics is not None):
@@ -122,6 +121,9 @@ class BenchSpek(object):
                 value = self.config.get(target_name, 'cosmics', opt, fallback=default)
                 cosmics[opt] = value
         return cosmics
+
+    def basic_reduction(self, filelist, bias=None, flat=None,
+                        op=numpy.mean, return_stack=False, cosmics=None, gain=True):
         _list = []
         header = None
         for fn in filelist:
@@ -139,6 +141,10 @@ class BenchSpek(object):
             data = hdulist[0].data.astype(float)
             if (bias is not None):
                 data -= bias
+            if (cosmics is not None):
+                # apply cosmic ray rejection
+                self.logger.info("Cosmic Ray rejection (fn=%s, opts: %s)" % (fn, str(cosmics)))
+                data, crmask = ccdproc.cosmicray_lacosmic(data, satlevel=2**18, verbose=False, **cosmics)
             if (flat is not None):
                 data /= flat
             _list.append(data)
