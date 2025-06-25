@@ -33,7 +33,8 @@ warnings.simplefilter("ignore", RuntimeWarning)
 
 def gauss(x, center, sigma, amplitude):
     return amplitude * numpy.exp(-(x - center) ** 2 / (2*sigma ** 2))
-
+def normalized_gaussian(x, mu, sig):
+    return 1.0 / (numpy.sqrt(2.0 * numpy.pi) * sig) * numpy.exp(-numpy.power((x - mu) / sig, 2.0) / 2)
 
 def _fit_gauss(p, x, flux):
     model = gauss(x, center=p[0], sigma=p[1], amplitude=p[2])
