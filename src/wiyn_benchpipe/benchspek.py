@@ -111,6 +111,17 @@ class BenchSpek(object):
         self.write_FITS(hdulist, full_fn, **kwargs)
 
     def basic_reduction(self, filelist, bias=None, flat=None, op=numpy.mean):
+    def get_cosmic_ray_rejection_options(self, target_name):
+        cosmics = self.config.get(target_name, "cosmics", "clean", fallback=None)
+        if (cosmics is not None):
+            cosmics = {}
+            for opt,default in [('sigfrac', 0.4),
+                        ('sigclip', 10),
+                        ('niter', 4),
+                        ]:
+                value = self.config.get(target_name, 'cosmics', opt, fallback=default)
+                cosmics[opt] = value
+        return cosmics
         _list = []
         header = None
         for fn in filelist:
