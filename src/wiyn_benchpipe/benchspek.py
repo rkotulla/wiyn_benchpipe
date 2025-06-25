@@ -66,6 +66,9 @@ class BenchSpek(object):
         self.read_config()
         if (raw_dir is not None and os.path.isdir(raw_dir)):
             self.raw_dir = raw_dir
+        self.make_plots = str(self.config.get('plots')).lower() == "yes"
+        if (self.make_plots):
+            self.logger.info("Activating plot generation")
 
     def read_config(self):
         self.logger.info(self.json_file)
