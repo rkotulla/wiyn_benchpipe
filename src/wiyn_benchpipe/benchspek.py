@@ -14,6 +14,7 @@ import itertools
 from specutils import Spectrum1D
 import astropy.units as u
 from specutils.manipulation import FluxConservingResampler
+import ccdproc
 
 # from src.wiyn_benchpipe import fibertraces
 from .fibertraces import *
