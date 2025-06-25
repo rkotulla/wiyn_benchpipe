@@ -151,6 +151,8 @@ class BenchSpek(object):
             _list.append(data)
         stack = numpy.array(_list)
         combined = op(stack, axis=0)
+        if (return_stack):
+            return combined, header, stack
         return combined, header
 
     def make_master_bias(self, save=None):
