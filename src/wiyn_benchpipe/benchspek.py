@@ -155,18 +155,60 @@ class BenchSpek(object):
             return combined, header, stack
         return combined, header
 
-    def make_master_bias(self, save=None):
+    def make_master_bias(self, save=None, *opts, **kwopts):
         self.logger.info("Creating master bias")
-        self.master_bias, _ = self.basic_reduction(
+        self.master_bias, _, bias_stack = self.basic_reduction(
             filelist=self.config.get('bias'),
-            bias=None, flat=None, op=numpy.median)
-        print(self.master_bias.shape)
+            bias=None, flat=None, op=numpy.median, return_stack=True, *opts, **kwopts)
+        # print(self.master_bias.shape)
+        pyfits.PrimaryHDU(data=bias_stack).writeto("bias_stack.fits", overwrite=True)
         if (save is not None):
             self.logger.info("Writing master bias to %s", save)
             self.write_cals_FITS(pyfits.PrimaryHDU(data=self.master_bias), filename=save)
             # pyfits.PrimaryHDU(data=self.master_bias).writeto(save, overwrite=True)
 
-    def make_master_flat(self, save=None):
+        rdnoise = self.config.get("readnoise", fallback='auto')
+        if (rdnoise != 'auto'):
+            self.readnoise_adu = rdnoise
+            self.readnoise_adu_std = 0
+        else:
+            self.logger.debug("Finding readnoise")
+            readnoise2d = numpy.std(bias_stack, axis=0)
+            good = numpy.isfinite(readnoise2d)
+            for i in range(3):
+                _stats = numpy.nanpercentile(readnoise2d[good], [16,50,84])
+                _med = _stats[1]
+                _sigma = 0.5*(_stats[2]-_stats[0])
+                good = good & (readnoise2d > (_med-3*_sigma)) & (readnoise2d < (_med+3*_sigma))
+            self.readnoise_adu = _med
+            self.readnoise_adu_std = _sigma
+            self.logger.info("Found Readnoise of %.3f +/- %.3f counts" % (
+                self.readnoise_adu, self.readnoise_adu_std))
+
+            if (self.make_plots):
+                self.logger.debug("Generating readnoise plot")
+                fig, ax = plt.subplots(figsize=(8,6), tight_layout=True)
+                ax.set_xlim((numpy.max([0,self.readnoise_adu-4*self.readnoise_adu_std]),
+                             self.readnoise_adu+8*self.readnoise_adu_std))
+                ax.set_xlabel("Readnoise [ADU]")
+                ax.set_ylabel("# pixels")
+                bins = numpy.linspace(0,40,800)
+                bincenters = bins + 0.5*(bins[2]-bins[1])
+                ax.hist(readnoise2d.ravel(), bins=bins, alpha=0.7)
+                ax.axvline(x=self.readnoise_adu,c='red', label="Median: %.3f ADU" % (self.readnoise_adu))
+                n_pixels = readnoise2d.size
+                ax.set_yscale('log')
+                ax.set_ylim((0.5, n_pixels * (bins[1]-bins[0])))
+                ax.plot(bincenters,
+                        n_pixels * (bins[1]-bins[0]) * normalized_gaussian(bincenters, self.readnoise_adu, self.readnoise_adu_std),
+                        label=r"$\sigma$ = %.3f" % (self.readnoise_adu_std))
+                ax.legend(loc='upper right')
+                ax.set_title("Readnoise (#frames: %d)" % (bias_stack.shape[0]))
+                __fn = "readnoise_distribution.png"
+                self.logger.debug("Saving readnoise plot to %s" % (__fn))
+                fig.savefig(__fn, dpi=300)
+
+    def make_master_flat(self, save=None, *opts, **kwopts):
         self.logger.info("Creating master flat")
         _list = []
         for fn in self.config.get('flat'):
