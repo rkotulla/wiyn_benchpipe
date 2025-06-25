@@ -1465,11 +1465,11 @@ class BenchSpek(object):
     def calibrate(self, save=False):
 
         cosmic_options = self.get_cosmic_ray_rejection_options(None)
+
         _master_bias_fn = "master_bias.fits" if save else None
         self.make_master_bias(save=_master_bias_fn, cosmics=cosmic_options)
 
         _master_flat_fn = "master_flat.fits" if save else None
-        self.make_master_flat(save=_master_flat_fn)
         self.make_master_flat(save=_master_flat_fn, cosmics=cosmic_options)
 
         # return
