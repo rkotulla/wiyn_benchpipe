@@ -72,7 +72,7 @@ class Config(object):
 
     def get(self, *opts, fallback=None):
         subnest = self.config
-        nest = list(opts)
+        nest = [opt for opt in list(opts) if opt is not None]
         found = None
 
         for n in nest:
