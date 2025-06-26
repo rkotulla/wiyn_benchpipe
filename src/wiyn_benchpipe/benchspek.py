@@ -240,11 +240,13 @@ class BenchSpek(object):
 
 
     def make_master_comp(self, save=None):
+    def make_master_comp(self, save=None, *opts, **kwopts):
         self.logger.info("Creating master comp")
         self.master_comp, self.comp_header = self.basic_reduction(
             filelist=self.config.get('comp'),
             bias=self.master_bias, flat=self.master_flat,
-            op=numpy.median
+            op=numpy.median,
+            *opts, **kwopts
         )
         self.logger.debug("MasterComp dimensions: %s" % (str(self.master_comp.shape)))
         # print(self.master_comp.shape)
