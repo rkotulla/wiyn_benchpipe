@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 class GenericFiberSpecs(object):
 
     n_fibers = -1
+    ref_fiber_id = 0
     sky_fiber_ids = None
     name = "Generic Instrument"
 

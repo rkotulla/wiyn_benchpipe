@@ -1622,7 +1622,7 @@ class BenchSpek(object):
         # self.read_reference_linelist()
 
         # extract lines for reference spectrum
-        self.ref_fiberid = 41
+        self.ref_fiberid = self.raw_traces.ref_fiber_id
         # find wavelength solution for one "reference" fiber
         self.wavelength_solution = self.find_wavelength_solution(
             self.comp_spectra[self.ref_fiberid],
