@@ -13,6 +13,7 @@ class GenericFiberSpecs(object):
 
     n_fibers = -1
     sky_fiber_ids = None
+    name = "Generic Instrument"
 
     def __init__(self, logger=None):
         if (self.n_fibers < 0):
@@ -22,6 +23,7 @@ class GenericFiberSpecs(object):
             logger = logging.getLogger('FiberSpecs')
         self.logger = logger
 
+        self.logger.info("Loading definitions for %s" % (self.name))
         return
 
     def find_trace_fibers(self, trace_image):

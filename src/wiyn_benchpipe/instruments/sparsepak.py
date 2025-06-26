@@ -6,6 +6,7 @@ from ..fibertraces import GenericFiberSpecs
 
 class SparsepakFiberSpecs( GenericFiberSpecs ):
     n_fibers = 82
+    name = "SparsePak @ WIYN"
 
     _sky_fibers = [22, 16, 2, 37, 54, 80, 70]
     sky_fiber_ids = numpy.array(_sky_fibers, dtype=int) - 1
