@@ -150,8 +150,13 @@ class BenchSpek(object):
             if (flat is not None):
                 data /= flat
             _list.append(data)
-        stack = numpy.array(_list)
-        combined = op(stack, axis=0)
+
+        if (_list):
+            stack = numpy.array(_list)
+            combined = op(stack, axis=0)
+        else:
+            stack = None
+            combined = None
         if (return_stack):
             return combined, header, stack
         return combined, header
@@ -162,8 +167,10 @@ class BenchSpek(object):
             filelist=self.config.get('bias'),
             bias=None, flat=None, op=numpy.median, return_stack=True, *opts, **kwopts)
         # print(self.master_bias.shape)
-        pyfits.PrimaryHDU(data=bias_stack).writeto("bias_stack.fits", overwrite=True)
-        if (save is not None):
+        # pyfits.PrimaryHDU(data=bias_stack).writeto("bias_stack.fits", overwrite=True)
+        if (self.master_bias is None):
+            self.logger.warning("No BIAS created, skipping bias correction")
+        elif (save is not None):
             self.logger.info("Writing master bias to %s", save)
             self.write_cals_FITS(pyfits.PrimaryHDU(data=self.master_bias), filename=save)
             # pyfits.PrimaryHDU(data=self.master_bias).writeto(save, overwrite=True)
