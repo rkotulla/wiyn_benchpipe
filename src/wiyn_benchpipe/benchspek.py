@@ -172,6 +172,9 @@ class BenchSpek(object):
         if (rdnoise != 'auto'):
             self.readnoise_adu = rdnoise
             self.readnoise_adu_std = 0
+        elif (bias_stack.shape[0] < 2):
+            self.logger.warning("Need at least 2 bias frames to compute readnoise")
+            self.readnoise_adu = 10
         else:
             self.logger.debug("Finding readnoise")
             readnoise2d = numpy.std(bias_stack, axis=0)
