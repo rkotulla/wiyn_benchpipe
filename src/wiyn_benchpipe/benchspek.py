@@ -214,16 +214,21 @@ class BenchSpek(object):
 
     def make_master_flat(self, save=None, *opts, **kwopts):
         self.logger.info("Creating master flat")
-        _list = []
-        for fn in self.config.get('flat'):
-            _fn = os.path.join(self.raw_dir, fn)
-            hdulist = pyfits.open(_fn)
-            data = hdulist[0].data.astype(float)
-            if (self.master_bias is not None):
-                data -= self.master_bias
-            _list.append(data)
-        stack = numpy.array(_list)
-        self.master_flat = numpy.median(stack, axis=0)
+        # _list = []
+        self.master_flat, _, flat_stack = self.basic_reduction(
+            filelist=self.config.get('flat'),
+            bias=self.master_bias, flat=None, op=numpy.median,
+            return_stack=True, *opts, **kwopts)
+        #
+        # for fn in self.config.get('flat'):
+        #     _fn = os.path.join(self.raw_dir, fn)
+        #     hdulist = pyfits.open(_fn)
+        #     data = hdulist[0].data.astype(float)
+        #     if (self.master_bias is not None):
+        #         data -= self.master_bias
+        #     _list.append(data)
+        # stack = numpy.array(_list)
+        # self.master_flat = numpy.median(stack, axis=0)
         # print(self.master_flat.shape)
         # if (save is not None):
         #     self.logger.info("Writing master flat to %s", save)
@@ -231,15 +236,112 @@ class BenchSpek(object):
 
         # normalize flat-field
         avg_flat = numpy.nanmean(self.master_flat, axis=1).reshape((-1,1))
-        print(avg_flat.shape)
+        # print(avg_flat.shape)
         self.master_flat /= avg_flat
         numpy.savetxt("masterflat_norm.txt", avg_flat)
         if (save is not None):
             self.logger.info("Writing master flat to %s", save)
             self.write_cals_FITS(pyfits.PrimaryHDU(data=self.master_flat), filename=save)
 
+        gain = self.config.get("gain", fallback='auto')
+        if (gain != 'auto'):
+            self.gain = gain
+        elif (flat_stack.shape[0] < 3):
+            self.logger.warning(
+                "Unable to compute gain from only %d flats, need at least 3 (more is better)" % (flat_stack.shape[0]))
+            self.gain = 0.5
+            # need at least three flatfields to generate noise across 2 pairs; more is better!
+        else:
+            # need at least three flatfields to generate noise across 2 pairs; more is better!
+            self.logger.info("Computing gain from flatfields")
+            # generate mean flatfield levels in pairs of flatfields
+            mean_flat = numpy.mean((flat_stack[1:, :, :] + flat_stack[:-1, :, :]) / 2., axis=0)
+            # generate pairwise differences in flatfields (to take out any pixel variations), then compute the noise
+            # in these difference flats
+            dflat = numpy.diff(flat_stack, axis=0)
+            std_dflat = numpy.std(dflat, axis=0)
 
-    def make_master_comp(self, save=None):
+            # define the fitting functions for two scenarios, with readnoise fixed or variable
+            def _noise_var_readnoise(p, f):
+                gain = p[0]
+                rne = p[1]
+                return numpy.sqrt( f*gain + 2*(rne*gain)**2 ) / gain
+            def _error_var_readnoise(p,f,n):
+                pred = _noise_var_readnoise(p,f)
+                delta = pred - n
+                return delta
+            def _noise_fixed_readnoise(p, f, rdnoise):
+                gain = p[0]
+                # need readnoise x 2; we are dealing with differences between flats (so 2 reads)
+                return numpy.sqrt( f*gain + 2*(rdnoise*gain)**2 ) / gain
+            def _error_fixed_readnoise(p,f,n,rdnoise):
+                pred = _noise_fixed_readnoise(p, f, rdnoise)
+                delta = pred - n
+                return delta
+
+            # select good data
+            good = (mean_flat < 100000)
+            good_flux = mean_flat[good]
+            good_noise = std_dflat[good]
+
+            # One fit, using readnoise as a free parameter
+            _fitresults_var_readnoise = scipy.optimize.leastsq(
+                func=_error_var_readnoise, x0=[0.5, 10], args=(good_flux, good_noise),
+                full_output=True)
+            best_fit_var_readnoise = _fitresults_var_readnoise[0]
+            uncert_var = numpy.diag(numpy.sqrt(_fitresults_var_readnoise[1]))
+            # print(uncert_var)
+
+            # second fit, using a fixed readnoise taken from the biases
+            _fitresults_fixed_rdnoise = scipy.optimize.leastsq(
+                func=_error_fixed_readnoise, x0=[0.5], args=(good_flux, good_noise, self.readnoise_adu),
+                full_output=True)
+            # print("\nFit w fixed readnoise")
+            best_fit_fixed_readnoise = _fitresults_fixed_rdnoise[0]
+            uncert = numpy.diag(numpy.sqrt(_fitresults_fixed_rdnoise[1]))
+
+            self.gain = best_fit_var_readnoise[0]
+
+            if (self.make_plots):
+                i = numpy.logspace(0, 5.3, 100)
+
+                fig, ax = plt.subplots(figsize=(12,7), tight_layout=True)
+                ax.set_xlabel("flux [ADU]")
+                ax.set_ylabel("noise (combined photon-noise + readnoise) [ADU]")
+
+                # show a subset of data
+                ev=10
+                ax.scatter(mean_flat[::ev], std_dflat[::ev], s=1, alpha=0.05)
+
+                # overplot the fit with readnoise as parameter
+                ax.plot(i, _noise_var_readnoise(best_fit_var_readnoise, i), lw=3, alpha=0.5, c='red',
+                        label=r"Gain: %.3f e$^-$/ADU" "\n" r"Readnoise [fit]: %.3f ADU = %.3f e$^-$" % (
+                           best_fit_var_readnoise[0], best_fit_var_readnoise[1], best_fit_var_readnoise[1]*best_fit_var_readnoise[0]
+                       ))
+
+                # 2nd overplot, fit using fixed readnoise
+                ax.plot(i, _noise_fixed_readnoise(best_fit_fixed_readnoise, i, self.readnoise_adu),
+                        lw=3, alpha=0.5, c='green',
+                        label=r"Gain: %.3f e$^-$/ADU" "\n" r"Readnoise [fixed]: %.3f ADU = %.3f e$^-$" % (
+                           best_fit_fixed_readnoise[0], self.readnoise_adu, self.readnoise_adu * best_fit_fixed_readnoise[0]
+                       ))
+
+                ax.set_xscale('log')
+                ax.set_yscale('log')
+                ax.grid(which='major', c='k', alpha=0.4)
+                ax.grid(which='minor', c='grey', alpha=0.1)
+                ax.legend(loc='upper left')
+
+                self.logger.info("Results var.  readnoise: Readnoise: %.3f ADU = %.3f e- // Gain: %.3f e-/ADU" % (
+                    best_fit_var_readnoise[1], best_fit_var_readnoise[1]*best_fit_var_readnoise[0],  best_fit_var_readnoise[0]))
+                self.logger.info("Results fixed readnoise: Readnoise: %.3f ADU = %.3f e- // Gain: %.3f e-/ADU" % (
+                    self.readnoise_adu, self.readnoise_adu * best_fit_fixed_readnoise[0], best_fit_fixed_readnoise[0]))
+
+                _plot_fn = "gain_derivation.png"
+                fig.savefig(_plot_fn)
+
+        self.readnoise_electrons = self.readnoise_adu * self.gain
+
     def make_master_comp(self, save=None, *opts, **kwopts):
         self.logger.info("Creating master comp")
         self.master_comp, self.comp_header = self.basic_reduction(
