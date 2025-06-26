@@ -54,9 +54,9 @@ class GenericFiberSpecs(object):
             size=(5, 30)
         )
         # Now fit a linear slope to the background
-        left_edge = 80  ## adjust this for binning, assuming 4x3
-        right_edge = 570
         w = 10
+        left_edge = w #80  ## adjust this for binning, assuming 4x3
+        right_edge = self.size_x - w - 1 #570
 
         left = numpy.mean(min_filter[:, left_edge - w:left_edge + w], axis=1).reshape((-1, 1))
         right = numpy.mean(min_filter[:, right_edge - w:right_edge + w], axis=1).reshape((-1, 1))
@@ -76,7 +76,7 @@ class GenericFiberSpecs(object):
         all_peaks = []
         all_traces_y = []
         for y in range(dy, bgsub.shape[0], 2 * dy):
-            prof = numpy.nanmean(bgsub[y - dy:y + dy, :], axis=0)
+            prof = numpy.nanmedian(bgsub[y - dy:y + dy, :], axis=0)
             peak_intensity = numpy.mean(prof)
             # print(y, peak_intensity)
 
@@ -88,7 +88,10 @@ class GenericFiberSpecs(object):
             all_peaks.append(peaks)
             all_traces_y.append(y)
 
+        self.logger.info("Found all traces across %d samples (dy=%d)" % (len(all_peaks), dy))
         centers = numpy.array(all_peaks)
+        all_traces_y = numpy.array(all_traces_y)
+        numpy.savetxt("centers", numpy.hstack([all_traces_y.reshape((-1,1)),centers]))
 
         # derive the average spacing between fibers
         # we need this to determine the boundaries of the fibers at the
@@ -107,7 +110,10 @@ class GenericFiberSpecs(object):
         inverted = -1. * bgsub
         all_troughs = []
         for i, y in enumerate(all_traces_y):
-            prof = numpy.nanmean(inverted[y - dy:y + dy, :], axis=0)
+            prof = numpy.nanmedian(inverted[y - dy:y + dy, :], axis=0)
+            numpy.savetxt("prof_inv_raw_y=%d" % y, prof)
+            prof = scipy.ndimage.gaussian_filter(prof, sigma=1)
+            numpy.savetxt("prof_inv_filt_y=%d" % y, prof)
             peak_intensity = numpy.min(prof)
             # print(y, peak_intensity)
 
@@ -123,6 +129,7 @@ class GenericFiberSpecs(object):
         all_troughs = numpy.array(all_troughs)
 
         # figure out the outer edge of the left & rightmost fibers
+        self.logger.info("Finding outer edges")
         far_left = centers[:, 0].reshape((-1, 1)) - 0.5 * avg_peak2peak_vertical
         print(far_left.shape)
         far_right = centers[:, -1].reshape((-1, 1)) + 0.5 * avg_peak2peak_vertical
