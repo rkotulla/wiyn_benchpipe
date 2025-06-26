@@ -1595,7 +1595,7 @@ class BenchSpek(object):
         # self.trace_fibers_raw(flat=self.master_flat)
 
         self.logger.info("Extracting fiber spectra from master flat")
-        self.raw_traces = SparsepakFiberSpecs()
+        self.raw_traces = select_instrument(self.comp_header)
         self.raw_traces.find_trace_fibers(self.master_flat)
         # comp_spectra = raw_traces.extract_fiber_spectra(
         #     imgdata=self.master_comp,
