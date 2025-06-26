@@ -1,4 +1,5 @@
 
+import astropy
 import astropy.io.fits as pyfits
 
 from .sparsepak import  SparsepakFiberSpecs
@@ -11,6 +12,8 @@ def select_instrument(file_or_hdu, *args, **kwargs):
             hdr = hdulist[0].header
         except:
             raise IOError("Could not open file %s" % (file_or_hdu))
+    elif (type(file_or_hdu) is astropy.io.fits.header.Header):
+        hdr = file_or_hdu
     else:
         hdr = file_or_hdu[0].header
 
