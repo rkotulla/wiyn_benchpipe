@@ -2,6 +2,8 @@
 
 import argparse
 import os
+
+import numpy
 import scipy.ndimage
 
 import scipy
@@ -18,7 +20,7 @@ import ccdproc
 
 # from src.wiyn_benchpipe import fibertraces
 from .fibertraces import *
-from .grating import Grating, grating_from_header
+#from .grating import Grating #, grating_from_header
 from .spec_and_lines import SpecAndLines
 from .config import Config
 from .instruments import *
@@ -771,7 +773,7 @@ class BenchSpek(object):
         # self.logger.info("User solution: central wavelength: %.3f; dispersion: %.4f" % (lambda_central, dispersion))
 
         self.logger.info("Getting approximate wavelength solution from grating setup")
-        self.grating_solution = grating_from_header(self.comp_header)
+        self.grating_solution = self.raw_traces.grating_from_header(self.comp_header)
         self.logger.info("GRATING: central wavelength: %f" % (self.grating_solution.central_wavelength))
         self.logger.info("GRATING: solution: %s" % (self.grating_solution.wl_polyfit))
 
