@@ -24,6 +24,7 @@ from .fibertraces import *
 from .spec_and_lines import SpecAndLines
 from .config import Config
 from .instruments import *
+from .data import get_file
 
 import warnings
 #with warnings.catch_warnings():
@@ -628,6 +629,63 @@ class BenchSpek(object):
             return line_inventory, contsub
         return line_inventory
 
+    def find_reflines_from_csv(self, ref_spec_fn, wl_min, wl_max):
+        self.logger.info("Loading reference lines from CSV file (%s)" % (ref_spec_fn))
+
+        data = pandas.read_csv(ref_spec_fn, sep=',', comment='#')
+        self.logger.info("Raw column names: %s" % (", ".join(list(data.columns))))
+
+        # Rename the first two columns, and add other required columns as needed
+        output_columns = ['gauss_wl', 'gauss_amp'] + list(data.columns[2:])
+        data.columns = output_columns
+
+        required_columns = ['gauss_width']
+        for rc in required_columns:
+            if (rc not in data.columns):
+                data[rc] = numpy.nan
+
+        self.logger.info("Corrected column names: %s" % (", ".join(list(data.columns))))
+        self.logger.info("Read %d lines between wavelength %.2f ... %.2f" % (
+            len(data), data['gauss_wl'].min(), data['gauss_wl'].max()))
+
+        keepers = numpy.isfinite(data['gauss_wl'])
+        if (wl_min is not None):
+            keepers[data['gauss_wl'] < wl_min] = False
+        if (wl_max is not None):
+            keepers[data['gauss_wl'] > wl_max] = False
+        self.ref_inventory = data[keepers]
+        self.logger.info("Pre-selected line list has %d lines" % (len(self.ref_inventory)))
+
+    def find_reflines(self, ref_spec_fn=None, sci_sigma=None, wl_min=None, wl_max=None):
+
+        if (ref_spec_fn is None):
+            ref_spec_fn = self.config.get('linelist') # "scidoc2212.fits"
+        if (not os.path.isfile(ref_spec_fn)):
+            self.logger.info("Linelist file (%s) not found in current directory, trying data repository instead")
+            _fn = get_file(ref_spec_fn)
+            if (not os.path.isfile(_fn)):
+                self.logger.error("Unable to locate linelist file (checked %s and %s)" % (
+                    ref_spec_fn, _fn
+                ))
+                return None
+            else:
+                ref_spec_fn = _fn
+
+        self.logger.info("Processing linelists from %s" % (ref_spec_fn))
+        if (ref_spec_fn.endswith(".csv")):
+            # load using pandas
+            self.logger.info("Loading linelist catalog")
+            return self.find_reflines_from_csv(ref_spec_fn, wl_min, wl_max)
+        elif (ref_spec_fn.endswith(".fits")):
+            # assume this is a spectrum file
+            return self.find_reflines_from_spec(ref_spec_fn, sci_sigma, wl_min, wl_max)
+        else:
+            self.logger.error("Unable to identify how to process linelist in %s" % (ref_spec_fn))
+            return None
+
+
+
+
     def find_reflines_from_spec(self, ref_spec_fn=None, sci_sigma=None, wl_min=None, wl_max=None):
 
         if (ref_spec_fn is None):
@@ -809,7 +867,7 @@ class BenchSpek(object):
         # now extract reference lines, after matching resolution to that of the
         # data we are about to calibrate
         wl_padding = 0.05*(self.grating_solution.wl_rededge - self.grating_solution.wl_blueedge)
-        self.find_reflines_from_spec(
+        self.find_reflines(
             sci_sigma=line_width_AA,
             wl_min=(self.grating_solution.wl_blueedge - wl_padding),
             wl_max=(self.grating_solution.wl_rededge + wl_padding)
