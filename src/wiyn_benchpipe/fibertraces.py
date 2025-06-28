@@ -120,15 +120,28 @@ class GenericFiberSpecs(object):
             peak_intensity = numpy.min(prof)
             # print(y, peak_intensity)
 
-            peaks, peak_props = scipy.signal.find_peaks(prof, height=0.5 * peak_intensity, distance=3)
+            troughs, troughs_props = scipy.signal.find_peaks(prof, height=0.5 * peak_intensity, distance=3)
+            numpy.savetxt("proftrough_y=%d" % y, numpy.array([troughs, prof[troughs]]).T)
 
             _left = leftmost_peak[i]
             _right = rightmost_peak[i]
-            good = (peaks > _left) & (peaks < _right)
-            good_peaks = peaks[good]
+            good = (troughs > _left) & (troughs < _right)
+            good_troughs = troughs[good]
+            if (len(good_troughs) != self.n_fibers-1):
+                fixed_troughs = []
+                for l,r in zip(centers[i,:-1], centers[i, 1:]):
+                    in_between = (good_troughs > l) & (good_troughs < r)
+                    if (len(in_between) == 0):
+                        fixed_troughs.append((l+r)/2)
+                    else:
+                        fixed_troughs.append(numpy.median(good_troughs[in_between]))
+                good_troughs = fixed_troughs
             # print(y, peak_intensity, peaks.shape, good_peaks.shape)
-            all_troughs.append(good_peaks)
+            all_troughs.append(good_troughs)
 
+        with open("all_troughs", "w") as at:
+            for y, t in zip(all_traces_y, all_troughs):
+                print("%f %d %s" % (y, len(t), " ".join(["%.2f" % f for f in t])), file=at)
         all_troughs = numpy.array(all_troughs)
 
         # figure out the outer edge of the left & rightmost fibers
