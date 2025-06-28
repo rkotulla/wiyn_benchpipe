@@ -8,6 +8,7 @@ import pandas
 import astropy.io.fits as pyfits
 import matplotlib.pyplot as plt
 
+from .grating import Grating
 
 class GenericFiberSpecs(object):
 
@@ -245,6 +246,9 @@ class GenericFiberSpecs(object):
 
     def reorder_fibers(self, fiberspecs):
         return fiberspecs.copy()
+
+    def grating_from_header(self, *args, **kwargs):
+        return Grating(*args, **kwargs)
 
 # class SparsepakFiberSpecs( GenericFiberSpecs ):
 #     n_fibers = 82
