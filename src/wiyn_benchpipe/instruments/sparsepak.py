@@ -3,6 +3,7 @@ import astropy.coordinates as coord
 import astropy.units as u
 
 from ..fibertraces import GenericFiberSpecs
+from .wiyn_bench import wiyn_grating_from_header
 
 class SparsepakFiberSpecs( GenericFiberSpecs ):
     n_fibers = 82
@@ -70,4 +71,5 @@ class SparsepakFiberSpecs( GenericFiberSpecs ):
     def reorder_fibers(self, fiberspecs):
         return fiberspecs[::-1, :]
 
-    pass
+    def grating_from_header(self, header):
+        return wiyn_grating_from_header(header)
