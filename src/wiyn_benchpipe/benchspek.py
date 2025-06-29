@@ -866,7 +866,10 @@ class BenchSpek(object):
         # find peaks in the specified spectrum
         # contsub, peaks = self.find_lines(spec, threshold=500, distance=5)
         # peaks_fine = self.fine_line_centroiding(spec=contsub, line_pos=peaks)
-        self.comp_line_inventory, contsub = self.get_refined_lines_from_spectrum(spec, return_contsub=True)
+        numpy.savetxt("ref_comp_spec", spec)
+        self.comp_line_inventory, contsub = self.get_refined_lines_from_spectrum(
+            spec, return_contsub=True, min_threshold=5)
+        numpy.savetxt("ref_comp_spec_contsub", contsub)
         self.comp_line_inventory.to_csv("inventory_comp.csv", index=False)
         peaks = self.comp_line_inventory['gauss_center'].to_numpy()
         self.comp_spectrum_raw = spec
@@ -1314,6 +1317,9 @@ class BenchSpek(object):
             # apply the approximate position shift to account for curvature
             fiber_inventory['rough_rect_center'] = fiber_inventory['gauss_center'] + pixel_offsets[fiber_id]
 
+            fiber_inventory.to_csv("comp_spectrum_inventory_%d.csv" % (fiber_id), index=False)
+            numpy.savetxt("comp_spectrum_%d.spec" % (fiber_id), comp_spectra[fiber_id])
+
             incremental_curvature = pixel_offsets[fiber_id] - pixel_offsets[prev_fiber_id]
             rect_poly[-1] += incremental_curvature
 
@@ -1322,7 +1328,7 @@ class BenchSpek(object):
             fiber_pos = fiber_inventory['gauss_center'].to_numpy()
             for iter in range(3):
                 rect_position = numpy.polyval(rect_poly, fiber_pos)
-
+                self.logger.debug("Iteration %d --  rect-poly=%s" % (iter+1, str(rect_poly)))
                 np2 = numpy.array([rect_position, rect_position]).T
 
                 # now match the rough-aligned peaks to the reference peaks
