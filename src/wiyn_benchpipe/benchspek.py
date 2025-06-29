@@ -956,8 +956,8 @@ class BenchSpek(object):
         #dispersion = -0.31386
 
         # scan the range
-        var_wl, n_wl = 0.002, 100
-        var_disp, n_disp = 0.05, 100
+        var_wl, n_wl = 0.01,100 #0.002, 100
+        var_disp, n_disp = 0.05, 100 #0.05, 100
         # var_wl, n_wl = 0.002, 11
         # var_disp, n_disp = 0.02, 11
         scan_wl = numpy.linspace(lambda_central * (1. - var_wl), lambda_central * (1 + var_wl), n_wl)
