@@ -1689,7 +1689,7 @@ class BenchSpek(object):
         # return
 
         _master_comp_fn = "master_comp.fits" if save else None
-        self.make_master_comp(save=_master_comp_fn)
+        self.make_master_comp(save=_master_comp_fn, cosmics=cosmic_options)
 
         self.logger.info("Tracing fibers")
         # self.trace_fibers_raw(flat=self.master_flat)
