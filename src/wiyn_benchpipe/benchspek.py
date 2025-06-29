@@ -1205,7 +1205,10 @@ class BenchSpek(object):
         # print(peaks_wl)
         axs[0].scatter(peaks_wl, numpy.ones_like(peaks0) * 0.5, marker="|", c='orange')
         #
-        axs[0].scatter(self.ref_inventory['gauss_wl'], numpy.ones_like(self.ref_inventory['gauss_center']) * 0.6, c='blue', marker="|")
+        if ('gauss_center' in self.ref_inventory.columns):
+            axs[0].scatter(self.ref_inventory['gauss_wl'],
+                           numpy.ones_like(self.ref_inventory['gauss_center']) * 0.6,
+                           c='blue', marker="|")
         # print(finelines['center'])
         #
         axs[0].set_xlim((wl_min, wl_max))
