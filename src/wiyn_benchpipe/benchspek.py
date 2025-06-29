@@ -905,17 +905,19 @@ class BenchSpek(object):
 
         if (make_plots):
             self.logger.debug("Generating initial reference spectrum comparison")
-            fig, ax = plt.subplots(figsize=(13, 5))
+            fig, ax = plt.subplots(figsize=(13, 5), tight_layout=True)
             ax.plot(full_y, contsub, lw=0.5)
             # ax.plot(wl, contsub, lw=0.5)
-            ylabelpos = 20000
+            ylabelpos = numpy.nanpercentile(self.comp_line_inventory['gauss_center'].to_numpy(), 85)
             for p in peaks:
                 ax.axvline(x=p, ymin=0.0, ymax=0.8, lw=0.2, color='red', alpha=0.5)
-                ax.text(p, ylabelpos, "%d" % (p), rotation='vertical', ha='center')
+                ax.text(p, ylabelpos, "%d" % (p), rotation='vertical', ha='center', fontsize='small')
             #     if (reflines is not None):
             #         ax.scatter(reflines, numpy.ones_like(reflines)*2500, marker="|")
             # ax.set_yscale('log')
-            ax.set_ylim(0, 25000)
+            ax.set_ylim(-0.02*ylabelpos, ylabelpos*1.1)
+            ax.set_xlabel("comp spectrum position [pixel]")
+            ax.set_ylabel("comp spectrum amplitude")
             fig.savefig("reference_spectrum.png", dpi=300)
             self.logger.debug("Saved plot to reference_spectrum.png")
 
