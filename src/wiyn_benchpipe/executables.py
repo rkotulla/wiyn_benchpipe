@@ -17,8 +17,13 @@ def wiyn_benchpipe(cmdline_args=None):
 
     mplog.setup_logging(debug_filename="wiyn_benchpipe_debug.log",
                         log_filename="wiyn_benchpipe_reduce.log")
+
+    # disable nuisance logs from matplotlib (likely related to missing fonts etc and not actually a problem
     mpl_logger = logging.getLogger('matplotlib')
     mpl_logger.setLevel(logging.WARNING)
+
+    #logger = logging.getLogger()
+    #logger.setLevel(logging.DEBUG)
 
     logger = logging.getLogger("WIYN-BenchPipe")
     # logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(filename)-15s [ %(funcName)-30s ] :: %(message)s')
