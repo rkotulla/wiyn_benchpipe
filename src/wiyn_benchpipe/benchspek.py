@@ -590,6 +590,8 @@ class BenchSpek(object):
                 line_inventory.loc[idx, 'center_weight'] = weighted
                 line_inventory.loc[idx, 'iteration'] = iteration
                 line_inventory.loc[idx, 'threshold'] = threshold
+                line_inventory.loc[idx, 'left'] = _left
+                line_inventory.loc[idx, 'right'] = _right
                 line_inventory.loc[idx, 'fake_x'] = 500
 
                 # linemask = x > gaussfit[0]-
