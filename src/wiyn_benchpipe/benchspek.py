@@ -1174,9 +1174,15 @@ class BenchSpek(object):
         #
         # Compare/overlay reference and comp spectra
         #
-        ref_line_amps = numpy.nanpercentile(self.ref_inventory['gauss_amp'], [16,50,84])
-        typical_ref_line_amp = ref_line_amps[2]
-        axs[0].plot(self.refspec_wavelength, self.spec_scale(self.refspec_smoothed / typical_ref_line_amp), lw=0.4, c='blue', label='ref')
+        ref_line_amp_stats = numpy.nanpercentile(self.ref_inventory['gauss_amp'], [16,50,84])
+        print("ref line amp stats: %s" % (str(ref_line_amp_stats)))
+        try:
+            typical_ref_line_amp = ref_line_amp_stats[2]
+        except:
+            typical_ref_line_amp = 100
+        if (self.refspec_smoothed is not None):
+            axs[0].plot(self.refspec_wavelength, self.spec_scale(self.refspec_smoothed / typical_ref_line_amp),
+                        lw=0.4, c='blue', label='ref')
 
         # disp = -0.30
         # cwl = 6568
@@ -1186,8 +1192,8 @@ class BenchSpek(object):
 
         comp_wl = numpy.polyval(wavelength_solution, self.comp_spectrum_full_y0)
         # print("womp-wl:\n", comp_wl)
-        comp_line_amps = numpy.nanpercentile(self.comp_line_inventory['gauss_amp'], [16,50,84])
-        typical_comp_line_amp = comp_line_amps[2]
+        comp_line_amp_stats = numpy.nanpercentile(self.comp_line_inventory['gauss_amp'], [16,50,84])
+        typical_comp_line_amp = comp_line_amp_stats[2]
         self.logger.info("Spec scaling: ref:%f  comp:%f" % (typical_ref_line_amp, typical_comp_line_amp))
         axs[0].plot(comp_wl, self.spec_scale(self.comp_spectrum_continuumsub / typical_comp_line_amp), lw=0.4, c='orange', label='data')
         #
