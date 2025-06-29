@@ -1693,9 +1693,11 @@ class BenchSpek(object):
         # return
 
         # self.flat_spectra = self.extract_spectra_raw(imgdata=self.master_flat, weights=self.master_flat)
+        self.logger.info("Extracting trace spectra from flatfield")
         self.flat_spectra = self.raw_traces.extract_fiber_spectra(
             imgdata=self.master_flat, weights=self.master_flat)
         # print("flat_spectra.shape", self.flat_spectra.shape)
+        pyfits.PrimaryHDU(data=self.flat_spectra).writeto("flat_spectra.fits", overwrite=True)
         # numpy.savetxt("flat_spectra2.dat", self.flat_spectra)
 
         self.logger.info("Extracting fiber spectra from master comp")
@@ -1703,6 +1705,7 @@ class BenchSpek(object):
         self.comp_spectra = self.raw_traces.extract_fiber_spectra(
             imgdata=self.master_comp, weights=self.master_flat)
         # print(self.comp_spectra)
+        pyfits.PrimaryHDU(data=self.comp_spectra).writeto("comp_spectra.fits", overwrite=True)
         numpy.savetxt("comp_spectra2.dat", self.comp_spectra)
 
 
