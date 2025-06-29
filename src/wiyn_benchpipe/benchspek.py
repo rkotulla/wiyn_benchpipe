@@ -63,6 +63,19 @@ class BenchSpek(object):
 
     fiber_inventories = None
     fiber_wavelength_solutions = None
+    refspec_smoothed = None
+    comp_spectrum_full_y = None
+    comp_spectrum_full_y0 = None
+    comp_spectrum_center_y = None
+    ref_inventory = None
+    grating_solution = None
+    comp_line_inventory = None
+    matched_line_inventory = None
+    raw_traces = None
+    fiber_inventories = None
+    fiber_wavelength_solutions = None
+    fiber_wavelength_solutions_inverse = None
+    wavelength_solution = None
 
     def __init__(self, json_file, raw_dir=None):
         self.logger = logging.getLogger('BenchSpek')
