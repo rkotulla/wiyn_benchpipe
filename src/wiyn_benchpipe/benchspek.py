@@ -12,6 +12,7 @@ import scipy.ndimage
 import scipy.interpolate
 import scipy.optimize
 import itertools
+import multiparlog as mplog
 
 from specutils import Spectrum1D
 import astropy.units as u
