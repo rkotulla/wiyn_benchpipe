@@ -1306,7 +1306,7 @@ class BenchSpek(object):
 
 
         for fiber_id in numpy.hstack([
-            numpy.arange(ref_fiberid, self.n_fibers, 1),
+            numpy.arange(ref_fiberid, self.raw_traces.n_fibers, 1),
             numpy.arange(0, ref_fiberid+1)[::-1]
         ]):
             if (fiber_id == ref_fiberid):
@@ -1418,7 +1418,7 @@ class BenchSpek(object):
         poly_transforms = [None] * 82
         poly_transforms[ref_fiberid] = [0., 1., 0.]
 
-        for ranges in [numpy.arange(ref_fiberid + 1, self.n_fibers, 1),
+        for ranges in [numpy.arange(ref_fiberid + 1, self.raw_traces.n_fibers, 1),
                        numpy.arange(0, ref_fiberid)[::-1]]:
             poly_transform = poly_transforms[ref_fiberid]
             for fiberid in ranges:  # numpy.arange(ref_fiberid, 81, 1):
