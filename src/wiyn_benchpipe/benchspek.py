@@ -1097,7 +1097,11 @@ class BenchSpek(object):
         use_in_final_fit = numpy.isfinite(ref_wl_refined)
         # print("USE IN FIT", use_in_final_fit.shape)
         plot_fn = "wavelength_solution_details_initial.png"
-        self.make_wavelength_calibration_overview_plot(spec, best_fit, plot_fn=plot_fn)
+        try:
+            self.make_wavelength_calibration_overview_plot(spec, best_fit, plot_fn=plot_fn)
+        except:
+            self.logger.warning("Unable to create wave-length calib plot (%s)" % (plot_fn))
+            mplog.log_exception()
         for iteration in range(5):
             # TODO: change back to 5, or even better, keep going until
             #  no more changes are detected
@@ -1118,8 +1122,11 @@ class BenchSpek(object):
             _pm = peaks[matched]
             _rem = ref_wl_refined
             # print(_pm.shape, _rem.shape)
-            plot_fn = "wavelength_solution_details_iteration%0d.png" % (iteration+1)
-            self.make_wavelength_calibration_overview_plot(spec, polyfit, plot_fn=plot_fn, used_in_fit=use_in_final_fit)
+            try:
+                plot_fn = "wavelength_solution_details_iteration%0d.png" % (iteration+1)
+                self.make_wavelength_calibration_overview_plot(spec, polyfit, plot_fn=plot_fn, used_in_fit=use_in_final_fit)
+            except:
+                self.logger.warning("Unable to create wave-length calib plot (%s)" % (plot_fn))
 
         _pm = peaks[matched]
         _rem = ref_wl_refined
@@ -1136,8 +1143,11 @@ class BenchSpek(object):
         # axs[1].axhline(y=0, ls=":")
         # fig.savefig("matched__wavelength_vs_pixel.png")
         # self.logger.debug("Plot saved to matched__wavelength_vs_pixel.png")
-        plot_fn = "wavelength_solution_details_final.png"
-        self.make_wavelength_calibration_overview_plot(spec, polyfit, plot_fn=plot_fn, used_in_fit=use_in_final_fit)
+        try:
+            plot_fn = "wavelength_solution_details_final.png"
+            self.make_wavelength_calibration_overview_plot(spec, polyfit, plot_fn=plot_fn, used_in_fit=use_in_final_fit)
+        except:
+            self.logger.warning("Unable to create wave-length calib plot (%s)" % (plot_fn))
 
         #print(best_fit)
         #self.make_wavelength_calibration_overview_plot(spec, best_fit)#, used_in_fit=use_in_final_fit)
