@@ -1570,7 +1570,7 @@ class BenchSpek(object):
         # along each fiber trace, derive the wavelength
         center_x = self.master_comp.shape[1] // 2
         full_correction_per_fiber = numpy.array([
-            numpy.polyval(self.fiber_wavelength_solutions[i], centered_y) for i in range(self.n_fibers)])
+            numpy.polyval(self.fiber_wavelength_solutions[i], centered_y) for i in range(self.raw_traces.n_fibers)])
         # numpy.polyval(self.transform2d[i, :], centered_y) for i in range(self.n_fibers)])
         # print(full_correction_per_fiber.shape)
 
@@ -1941,13 +1941,13 @@ class BenchSpek(object):
         self.logger.info("Normalizing each flat in the range %.1f ... %.1f" % (
             center_left, center_right))
 
-        fiber_flatfields = [None] * self.n_fibers
-        self.fiber_flat_splines = [None] * self.n_fibers
-        self.fiber_mean_flux_center = [None] * self.n_fibers
+        fiber_flatfields = [None] * self.raw_traces.n_fibers
+        self.fiber_flat_splines = [None] * self.raw_traces.n_fibers
+        self.fiber_mean_flux_center = [None] * self.raw_traces.n_fibers
 
         normalized_master_flat = self.master_flat.copy()
 
-        for fiber_id in range(self.n_fibers):
+        for fiber_id in range(self.raw_traces.n_fibers):
             # pick a fiber to work on
             fiberspec = self.flat_spectra[fiber_id]
 
@@ -2048,10 +2048,10 @@ class BenchSpek(object):
         wl_padded[-pad_width:] = numpy.nan
         rebinned_wl = numpy.nanmedian(wl_padded.reshape((-1, filter_width)), axis=1)
 
-        fiber_flatfields = [None] * self.n_fibers
-        self.fiber_flat_splines = [None] * self.n_fibers
+        fiber_flatfields = [None] * self.raw_traces.n_fibers
+        self.fiber_flat_splines = [None] * self.raw_traces.n_fibers
 
-        for fiber_id in range(self.n_fibers):
+        for fiber_id in range(self.raw_traces.n_fibers):
             # pick a fiber to work on
             fiberspec = self.flat_fibers[fiber_id]
 
@@ -2497,8 +2497,8 @@ class BenchSpek(object):
             )
 
             # prepare sky spectrum
-            sky_fibers = numpy.array([22, 16, 2, 38, 54, 80, 70])
-            sky_fiberids = self.n_fibers - sky_fibers
+            sky_fibers = numpy.array([22, 16, 2, 38, 54, 80, 70]) # TODO: Use from instrument definition
+            sky_fiberids = self.raw_traces.n_fibers - sky_fibers # TODO: Fix this too
             sky = target_flatfielded[sky_fiberids]
             print(sky.shape)
             mean_sky = numpy.nanmedian(sky, axis=0)
