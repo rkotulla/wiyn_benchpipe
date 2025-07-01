@@ -259,9 +259,11 @@ class BenchSpek(object):
         #     pyfits.PrimaryHDU(data=self.master_flat).writeto(save, overwrite=True)
 
         # normalize flat-field
-        avg_flat = numpy.nanmean(self.master_flat, axis=1).reshape((-1,1))
+        avg_flat = numpy.nanmedian(self.master_flat, axis=1).reshape((-1,1))
+        cleaned_flat = scipy.ndimage.median_filter(avg_flat, size=11, mode='nearest')
+
         # print(avg_flat.shape)
-        self.master_flat /= avg_flat
+        self.master_flat /= cleaned_flat
         numpy.savetxt("masterflat_norm.txt", avg_flat)
         if (save is not None):
             self.logger.info("Writing master flat to %s", save)
