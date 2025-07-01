@@ -481,6 +481,8 @@ class BenchSpek(object):
     def get_refined_lines_from_spectrum(self, spec, distance=5, window_size=8,
                                         filter=True, return_contsub=False, min_threshold=None):
         # find a background approximation for the spectrum
+        spec = spec.copy()
+        spec[(spec < 0) | ~numpy.isfinite(spec)] = 0 # Clean up data
         mins = scipy.ndimage.minimum_filter(input=spec, size=20, mode='constant', cval=0)
         cont = scipy.ndimage.gaussian_filter1d(input=mins, sigma=10)
 
