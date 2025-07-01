@@ -509,7 +509,27 @@ class BenchSpek(object):
             _thresholds = _thresholds[_thresholds >= min_threshold]
         thresholds = _thresholds * _sigma
         # thresholds = numpy.array([20,5,2]) * _sigma
+
+        min_pixels = 3 # required minimum # of samples above threshold
+
+        thresh = _sigma * 1.5
+
+        pad1 = numpy.pad(contsub, (1,1))
+        diff_left = pad1[1:-1] - pad1[:-2] #numpy.diff(pad1)[:-1]
+        diff_right = pad1[2:] - pad1[1:-1] #((numpy.diff(pad1[::-1])[:-1])[::-1]
+        # print(pad1.shape, contsub.shape, diff_left.shape, diff_right.shape)
+
+        #        end_of_line_left  = not_significant | (diff_left < 0)  #| (diff_left > 0)
+        #        end_of_line_right = not_significant | (diff_right > 0) #| (diff_right > 0)
+
         for iteration, threshold in enumerate(thresholds):  # range(5):
+            self.logger.debug("Finding lines: Iteration %d, threshold: %.2f * sigma = %f" % (
+                    iteration+1, _thresholds[iteration], threshold))
+
+            significant = contsub >= threshold
+            not_significant = contsub < threshold
+            end_of_line_left  = not_significant | (diff_left < 0)  #| (diff_left > 0)
+            end_of_line_right = not_significant | (diff_right > 0) #| (diff_right > 0)
 
             # self.logger.debug("\n"+"*" * 25 + "\n\n   ITERATION %d\n\n" % (iteration + 1) + "*" * 25)
             added_new_line = False
@@ -519,22 +539,26 @@ class BenchSpek(object):
             diffslopes_right = numpy.pad(numpy.diff(contsub), (1, 0), mode='constant', constant_values=0)
 
             peaks, peak_props = scipy.signal.find_peaks(contsub, height=threshold, distance=distance)
+            self.logger.debug("Found %d lines with peak > %.2f" % (len(peaks), threshold))
 
             # fig, ax = plt.subplots(figsize=(25, 5))
 
             next_cs = contsub.copy()
             for i, line in enumerate(peaks):
 
-                # check if we already have a line at this position
+                # check if we already have a line at this position; only do this for valid lines
                 if (len(line_inventory.index) > 0):
-                    gc = line_inventory['gauss_center'].to_numpy()
-                    gw = line_inventory['gauss_width'].to_numpy()
-                    gw[gw > distance] = distance
-                    match = (line > (gc - width_buffer * gw)) & (line < (gc + width_buffer * gw))
-                    # print(match)
-                    if (numpy.sum(match) > 0):
-                        # self.logger.debug("already found a line at this approximate position %d" % (line))
-                        continue
+                    good_fit = numpy.isfinite(line_inventory['gauss_center']) & numpy.isfinite(line_inventory['gauss_width'])
+                    good_lines = line_inventory[good_fit]
+                    if (len(good_lines.index) > 0):
+                        gc = good_lines['gauss_center'].to_numpy()
+                        gw = good_lines['gauss_width'].to_numpy()
+                        gw[gw > distance] = distance
+                        match = (line > (gc - width_buffer * gw)) & (line < (gc + width_buffer * gw))
+                        # print(match)
+                        if (numpy.sum(match) > 0):
+                            #self.logger.debug("already found a line at this approximate position %d" % (line))
+                            continue
                     else:
                         # self.logger.debug("No counterpart found @ %d, continuing" % (line))
                         pass
@@ -544,26 +568,64 @@ class BenchSpek(object):
 
                 added_new_line = True
 
-                _left = numpy.max([0, int(numpy.floor(line - window_size))])
-                _right = numpy.min([int(numpy.ceil(line + window_size)), spec.shape[0] - 1])
+                p = line
 
-                try:
-                    _left2 = numpy.max([_left, numpy.max(x[(x < line) & (diffslopes_left < 0)]) + 1])
-                except ValueError:
-                    _left2 = _left
-
-                try:
-                    _right2 = numpy.min([_right, numpy.min(x[(x > line) & (diffslopes_right > 0)]) - 1])
-                except ValueError:
-                    _right2 = _right
+                _left = numpy.max([
+                    0,                                        # left edge of data
+                    p - window_size,                          # left edge of window size
+                    numpy.max(x[:p][end_of_line_left[:p]]+1)  # either up-turn or no longer significant
+                ])
+                _right = numpy.min([
+                    spec.shape[0] - 1,
+                    p + window_size,
+                    numpy.min(x[p:][end_of_line_right[p:]]),
+                ])
+                # int(numpy.ceil(line + window_size)), ])
+                #
+                #                    int(numpy.floor(line - window_size))])
+                # _right = numpy.min([int(numpy.ceil(line + window_size)), spec.shape[0] - 1])
+                #
+                # try:
+                #     _left2 = numpy.max([_left, numpy.max(x[(x < line) & (diffslopes_left < 0)]) + 1])
+                # except ValueError:
+                #     _left2 = _left
+                #
+                # try:
+                #     _right2 = numpy.min([_right, numpy.min(x[(x > line) & (diffslopes_right > 0)]) - 1])
+                # except ValueError:
+                #     _right2 = _right
                 # print(_left, _right, "-->", _left2, _right2)
 
                 # generate a flux-weighted mean position as starting guess for the following gauss fit
-                w_x = x[_left2:_right2 + 1]
-                w_spec = spec[_left2:_right2 + 1]
+                raw_width = _right - _left
+
+                w_x = x[_left:_right + 1]
+                w_spec = spec[_left:_right + 1]
                 weighted = numpy.sum(w_x * w_spec) / numpy.sum(w_spec)
                 # print(line, weighted)
                 peak_flux = contsub[line]
+
+                idx = len(line_inventory.index) + 1
+                line_inventory.loc[idx, 'position'] = line
+                line_inventory.loc[idx, 'peak'] = peak_flux #contsub[line]
+                line_inventory.loc[idx, 'center_weight'] = weighted
+                line_inventory.loc[idx, 'iteration'] = iteration
+                line_inventory.loc[idx, 'threshold'] = threshold
+                line_inventory.loc[idx, 'left'] = _left
+                line_inventory.loc[idx, 'right'] = _right
+                line_inventory.loc[idx, 'raw_width'] = raw_width
+                line_inventory.loc[idx, 'fake_x'] = 500
+                line_inventory.loc[idx, 'gauss_center'] = numpy.nan
+                line_inventory.loc[idx, 'gauss_width'] = numpy.nan
+                line_inventory.loc[idx, 'gauss_amp'] = numpy.nan
+
+
+                if (raw_width < min_pixels):
+                    # No need to spend more time on a line we'll exclude throw out later anyway,
+                    # plus, fitting a gaussian to a single/few pixels doesn't make much sense
+                    continue
+
+
 
                 full_fit_results = scipy.optimize.leastsq(
                     func=_fit_gauss,
@@ -575,27 +637,19 @@ class BenchSpek(object):
 
                 _fine_x = fine_x[_left * supersample:_right * supersample + 1]
                 modelgauss = gauss(w_x, gaussfit[0], gaussfit[1], gaussfit[2])
-                next_cs[_left2:_right2 + 1] -= modelgauss
-                gf[_left2:_right2 + 1] += modelgauss
+                next_cs[_left:_right + 1] -= modelgauss
+                gf[_left:_right + 1] += modelgauss
                 # centers.append(gaussfit[0])
+
+                line_inventory.loc[idx, 'gauss_center'] = gaussfit[0]
+                line_inventory.loc[idx, 'gauss_width'] = numpy.fabs(gaussfit[1])
+                line_inventory.loc[idx, 'gauss_amp'] = gaussfit[2]
 
                 # ax.scatter(x[_left2:_right2+1], cs[_left2:_right2+1], marker=markers[i%4], alpha=0.5)
 
                 # fine_gauss = gauss(_fine_x, gaussfit[0], gaussfit[1], gaussfit[2])
                 # ax.plot(_fine_x, fine_gauss, lw=1.2, ls=":", c='black')
 
-                idx = len(line_inventory.index) + 1
-                line_inventory.loc[idx, 'position'] = line
-                line_inventory.loc[idx, 'peak'] = contsub[line]
-                line_inventory.loc[idx, 'gauss_center'] = gaussfit[0]
-                line_inventory.loc[idx, 'gauss_width'] = numpy.fabs(gaussfit[1])
-                line_inventory.loc[idx, 'gauss_amp'] = gaussfit[2]
-                line_inventory.loc[idx, 'center_weight'] = weighted
-                line_inventory.loc[idx, 'iteration'] = iteration
-                line_inventory.loc[idx, 'threshold'] = threshold
-                line_inventory.loc[idx, 'left'] = _left
-                line_inventory.loc[idx, 'right'] = _right
-                line_inventory.loc[idx, 'fake_x'] = 500
 
                 # linemask = x > gaussfit[0]-
 
@@ -625,7 +679,9 @@ class BenchSpek(object):
 
             # require the gauss-fits to have similar peaks to the actual data
             amp_ratio = line_inventory['peak'] / line_inventory['gauss_amp']
-            good = (amp_ratio > 0.5) & (amp_ratio < 1.5)
+            good = (amp_ratio > 0.5) &  (amp_ratio < 1.5)                    # gauss is a reasonable fit
+            good = good & (line_inventory['raw_width'] > min_pixels)         # minimum number of pixels detected
+            good = good & (numpy.isfinite(line_inventory['gauss_center']))   # has a valid gauss fit
             self.logger.debug("Good @ start: %d" % (numpy.sum(good)))
 
             # only select lines with "typical" line widths
