@@ -1130,17 +1130,17 @@ class BenchSpek(object):
         matched = (i2 < ref_tree.n)
         n_good_line_matches2 = numpy.sum(matched)
         ref_wl_refined = reflines[i2[matched]]
-        print("MATCHING CATALOGS")
-        print("indices:", selected_list.index)
-        print("i2_matched:", i2[matched])
+        self.logger.debug("MATCHING CATALOGS")
+        # print("indices:", selected_list.index)
+        # print("i2_matched:", i2[matched])
         ref_matched = selected_list.iloc[i2[matched]]
-        print('ref_matched:', len(ref_matched.index))
-        print('comp XXX', len(self.comp_line_inventory['gauss_center'][matched].index))
+        # print('ref_matched:', len(ref_matched.index))
+        # print('comp XXX', len(self.comp_line_inventory['gauss_center'][matched].index))
 
         self.matched_line_inventory = pandas.DataFrame()
-        print("peaks:", peaks.shape)
-        print("matched:", matched.shape)
-        print("ref_wl_refined:", ref_wl_refined.shape)
+        # print("peaks:", peaks.shape)
+        # print("matched:", matched.shape)
+        # print("ref_wl_refined:", ref_wl_refined.shape)
 
         _comps = self.comp_line_inventory[matched].reset_index(drop=True)
         _ref = ref_matched.reset_index(drop=True)
@@ -1237,7 +1237,7 @@ class BenchSpek(object):
         # Compare/overlay reference and comp spectra
         #
         ref_line_amp_stats = numpy.nanpercentile(self.ref_inventory['gauss_amp'], [16,50,84])
-        print("ref line amp stats: %s" % (str(ref_line_amp_stats)))
+        # print("ref line amp stats: %s" % (str(ref_line_amp_stats)))
         try:
             typical_ref_line_amp = ref_line_amp_stats[2]
         except:
@@ -1572,7 +1572,7 @@ class BenchSpek(object):
         full_correction_per_fiber = numpy.array([
             numpy.polyval(self.fiber_wavelength_solutions[i], centered_y) for i in range(self.n_fibers)])
         # numpy.polyval(self.transform2d[i, :], centered_y) for i in range(self.n_fibers)])
-        print(full_correction_per_fiber.shape)
+        # print(full_correction_per_fiber.shape)
 
         iy,ix = numpy.indices(comp_image.shape, dtype=float)
 
@@ -1580,7 +1580,7 @@ class BenchSpek(object):
         # for each row, consider the wavelength points in each fiber trace, and fit a horizontal
         # polynomial to this data to interpolate wavelength across fibers
         centered_ix = ix - center_x
-        print(traces.fullres_centers.shape)
+        # print(traces.fullres_centers.shape)
         for y in full_y:  # [600:610]:
             centers = traces.fullres_centers[y, :] - center_x
             corrections = full_correction_per_fiber[:, y]
