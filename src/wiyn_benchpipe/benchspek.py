@@ -728,7 +728,8 @@ class BenchSpek(object):
         if (wl_max is not None):
             keepers[data['gauss_wl'] > wl_max] = False
         self.ref_inventory = data[keepers]
-        self.logger.info("Pre-selected line list has %d lines" % (len(self.ref_inventory)))
+        self.logger.info("Pre-selected line list has %d lines (%.1f ... %.1f)" % (
+            len(self.ref_inventory), self.ref_inventory['gauss_wl'].min(), self.ref_inventory['gauss_wl'].max()))
 
     def find_reflines(self, ref_spec_fn=None, sci_sigma=None, wl_min=None, wl_max=None):
 
