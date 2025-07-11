@@ -78,8 +78,9 @@ class BenchSpek(object):
     fiber_wavelength_solutions_inverse = None
     wavelength_solution = None
 
-    def __init__(self, json_file, raw_dir=None):
+    def __init__(self, json_file, raw_dir=None, debug=False):
         self.logger = logging.getLogger('BenchSpek')
+        self.debug = debug
 
         self.json_file = json_file
         self.read_config()
@@ -243,6 +244,8 @@ class BenchSpek(object):
             filelist=self.config.get('flat'),
             bias=self.master_bias, flat=None, op=numpy.median,
             return_stack=True, *opts, **kwopts)
+        pyfits.PrimaryHDU(data=self.master_flat).writeto("masterflat_raw.fits", overwrite=True)
+
         #
         # for fn in self.config.get('flat'):
         #     _fn = os.path.join(self.raw_dir, fn)
@@ -264,7 +267,7 @@ class BenchSpek(object):
 
         # print(avg_flat.shape)
         self.master_flat /= cleaned_flat
-        numpy.savetxt("masterflat_norm.txt", avg_flat)
+        if (self.debug): numpy.savetxt("masterflat_norm.txt", avg_flat)
         if (save is not None):
             self.logger.info("Writing master flat to %s", save)
             self.write_cals_FITS(pyfits.PrimaryHDU(data=self.master_flat), filename=save)
@@ -674,7 +677,7 @@ class BenchSpek(object):
                 self.logger.debug("No new lines found, aborting search")
                 break
 
-        line_inventory.to_csv("line_inventory_before_filtering.csv", index=False)
+        if (self.debug): line_inventory.to_csv("line_inventory_before_filtering.csv", index=False)
         if (filter):
             # apply some filtering:
             self.logger.debug("Applying filtering [start: %d]" % (len(line_inventory.index)))
@@ -786,7 +789,7 @@ class BenchSpek(object):
         # reflines = ref_inventory['gauss_center'].to_numpy()
         # refpeaks_wl = (reflines - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
         test_inventory['gauss_wl'] = (test_inventory['gauss_center'] - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
-        test_inventory.to_csv("reflines_inventory.csv", index=False)
+        if (self.debug): test_inventory.to_csv("reflines_inventory.csv", index=False)
 
         # trim down lines to approximately the observed range
         keepers = numpy.isfinite(test_inventory['gauss_wl'])
@@ -833,8 +836,9 @@ class BenchSpek(object):
             smooth_px_sigma = smooth_sigma / ref_dispersion / 2. # TODO: take out /2. fudge factor
             self.logger.debug("smoothing needed: sigma=%fAA ==> %.2fpx" % (smooth_sigma, smooth_px_sigma))
             smoothed = scipy.ndimage.gaussian_filter1d(contsub, sigma=smooth_px_sigma)
-        numpy.savetxt("refspec_smoothed", smoothed)
-        numpy.savetxt("refspec_contsub", contsub)
+        if (self.debug):
+            numpy.savetxt("refspec_smoothed", smoothed)
+            numpy.savetxt("refspec_contsub", contsub)
         # print(type(refpeaks_wl))
         # print(refpeaks_wl)
 
@@ -927,11 +931,12 @@ class BenchSpek(object):
         # find peaks in the specified spectrum
         # contsub, peaks = self.find_lines(spec, threshold=500, distance=5)
         # peaks_fine = self.fine_line_centroiding(spec=contsub, line_pos=peaks)
-        numpy.savetxt("ref_comp_spec", spec)
         self.comp_line_inventory, contsub = self.get_refined_lines_from_spectrum(
             spec, return_contsub=True, min_threshold=5)
-        numpy.savetxt("ref_comp_spec_contsub", contsub)
-        self.comp_line_inventory.to_csv("inventory_comp.csv", index=False)
+        if (self.debug):
+            numpy.savetxt("ref_comp_spec", spec)
+            numpy.savetxt("ref_comp_spec_contsub", contsub)
+            self.comp_line_inventory.to_csv("inventory_comp.csv", index=False)
         peaks = self.comp_line_inventory['gauss_center'].to_numpy()
         self.comp_spectrum_raw = spec
         self.comp_spectrum_continuumsub = contsub
@@ -952,12 +957,12 @@ class BenchSpek(object):
             wl_min=(self.grating_solution.wl_blueedge - wl_padding),
             wl_max=(self.grating_solution.wl_rededge + wl_padding)
         )
-        self.ref_inventory.to_csv("inventory_refspec.csv", index=False)
-
-        numpy.savetxt("spec_spec", spec)
-        numpy.savetxt("spec_peaks", peaks)
-        # numpy.savetxt("spec_peaks_fine", peaks_fine)
-        numpy.savetxt("spec_contsub", contsub)
+        if (self.debug):
+            self.ref_inventory.to_csv("inventory_refspec.csv", index=False)
+            numpy.savetxt("spec_spec", spec)
+            numpy.savetxt("spec_peaks", peaks)
+            # numpy.savetxt("spec_peaks_fine", peaks_fine)
+            numpy.savetxt("spec_contsub", contsub)
         self.logger.info("Found %d peaks in arc spectrum" % (peaks.shape[0]))
         full_y = numpy.arange(spec.shape[0])
         full_y0 = full_y - spec.shape[0]/2
@@ -1110,8 +1115,9 @@ class BenchSpek(object):
 
         self.logger.debug("Done exploring all combinations of central wavelength & dispersion")
         results = numpy.array(results)
-        numpy.savetxt("results.dump", results)
-        results_df.to_csv("wl_solution.results", index=False)
+        if (self.debug):
+            numpy.savetxt("results.dump", results)
+            results_df.to_csv("wl_solution.results", index=False)
 
         i_most_matches = numpy.argmax(results[:, 3])
         #print(i_most_matches)
@@ -1158,7 +1164,7 @@ class BenchSpek(object):
             },
             orient='columns',
         )
-        self.matched_line_inventory.to_csv("matched_line_inventory.csv", index=False)
+        if (self.debug): self.matched_line_inventory.to_csv("matched_line_inventory.csv", index=False)
 
         comp_peaks_px = peaks[matched] - self.comp_spectrum_center_y
         use_in_final_fit = numpy.isfinite(ref_wl_refined)
@@ -1347,7 +1353,7 @@ class BenchSpek(object):
         # print(wls)
         central_wl_offset = wls - wls[ref_fiberid]
         # print(central_wl_offset)
-        numpy.savetxt("wl_xy.txt", numpy.array([fiber_positions, wls, central_wl_offset]).T)
+        if (self.debug): numpy.savetxt("wl_xy.txt", numpy.array([fiber_positions, wls, central_wl_offset]).T)
 
         best_fit_dispersion = self.wavelength_solution[-2]
         self.logger.debug("best fit dispersion: %.4f" % (best_fit_dispersion))
@@ -1381,8 +1387,9 @@ class BenchSpek(object):
             # apply the approximate position shift to account for curvature
             fiber_inventory['rough_rect_center'] = fiber_inventory['gauss_center'] + pixel_offsets[fiber_id]
 
-            fiber_inventory.to_csv("comp_spectrum_inventory_%d.csv" % (fiber_id), index=False)
-            numpy.savetxt("comp_spectrum_%d.spec" % (fiber_id), comp_spectra[fiber_id])
+            if (self.debug):
+                fiber_inventory.to_csv("comp_spectrum_inventory_%d.csv" % (fiber_id), index=False)
+                numpy.savetxt("comp_spectrum_%d.spec" % (fiber_id), comp_spectra[fiber_id])
 
             incremental_curvature = pixel_offsets[fiber_id] - pixel_offsets[prev_fiber_id]
             rect_poly[-1] += incremental_curvature
@@ -1425,7 +1432,7 @@ class BenchSpek(object):
             fiber_inventory_combined = fiber_inventory.join(
                 other=crossmatched_comp_ref, how='outer')
 
-            fiber_inventory_combined.to_csv("fiber_inventory_%d.csv" % (fiber_id), index=False)
+            if (self.debug): fiber_inventory_combined.to_csv("fiber_inventory_%d.csv" % (fiber_id), index=False)
             self.fiber_inventories[fiber_id] = fiber_inventory_combined
 
             # Now we have a matched catalog, so we can derive a new wavelength calibration
@@ -1450,7 +1457,7 @@ class BenchSpek(object):
             spec_y = numpy.arange(comp_spectra[fiber_id].shape[0]) - self.raw_traces.midpoint_y
             spec_wl = numpy.polyval(fiber_wl_polyfit, spec_y)
             spec_combined = numpy.array([spec_y, spec_wl, comp_spectra[fiber_id]]).T
-            numpy.savetxt("comp_spectrum_%d.txt" % (fiber_id), spec_combined)
+            if (self.debug): numpy.savetxt("comp_spectrum_%d.txt" % (fiber_id), spec_combined)
 
             # keep track of what we just worked on
             prev_fiber_id = fiber_id
@@ -1617,9 +1624,10 @@ class BenchSpek(object):
         y0 = y - self.raw_traces.midpoint_y
         wl = numpy.array([numpy.polyval(self.fiber_wavelength_solutions[id], y0[id])
               for id in range(self.raw_traces.n_fibers)])
-        numpy.savetxt("wl_range_info", wl)
-        pyfits.PrimaryHDU(data=wl).writeto("reident_wl.fits", overwrite=True)
-        pyfits.PrimaryHDU(data=y).writeto("reident_y.fits", overwrite=True)
+        if (self.debug):
+            numpy.savetxt("wl_range_info", wl)
+            pyfits.PrimaryHDU(data=wl).writeto("reident_wl.fits", overwrite=True)
+            pyfits.PrimaryHDU(data=y).writeto("reident_y.fits", overwrite=True)
 
         _wl_min = numpy.nanmin(wl)
         _wl_max = numpy.nanmax(wl)
@@ -1750,8 +1758,6 @@ class BenchSpek(object):
         _master_flat_fn = "master_flat.fits" if save else None
         self.make_master_flat(save=_master_flat_fn, cosmics=cosmic_options)
 
-        # return
-
         _master_comp_fn = "master_comp.fits" if save else None
         self.make_master_comp(save=_master_comp_fn, cosmics=cosmic_options)
 
@@ -1783,7 +1789,7 @@ class BenchSpek(object):
             imgdata=self.master_comp, weights=self.master_flat)
         # print(self.comp_spectra)
         pyfits.PrimaryHDU(data=self.comp_spectra).writeto("comp_spectra.fits", overwrite=True)
-        numpy.savetxt("comp_spectra2.dat", self.comp_spectra)
+        if (self.debug): numpy.savetxt("comp_spectra2.dat", self.comp_spectra)
 
 
         # self.read_reference_linelist()
@@ -2019,7 +2025,7 @@ class BenchSpek(object):
 
         self.fiber_flatfields_smoothed_spline = numpy.array(fiber_flatfields)
         self.fiber_mean_flux_center = numpy.array(self.fiber_mean_flux_center)
-        numpy.savetxt("fiber_mean_flux_center", self.fiber_mean_flux_center)
+        if (self.debug): numpy.savetxt("fiber_mean_flux_center", self.fiber_mean_flux_center)
 
         self.logger.debug("removing overall variations from flatfields to isolate pixel-to-pixel variations")
         self.fiber_flatfield_pixel2pixel = self.flat_spectra / self.fiber_flatfields_smoothed_spline
@@ -2131,8 +2137,9 @@ class BenchSpek(object):
         ])
         pyfits.PrimaryHDU(data=skies).writeto("rough_skies.fits", overwrite=True)
         rough_sky = numpy.nanmedian(skies, axis=0)
-        numpy.savetxt("rough_skies.txt", skies)
-        numpy.savetxt("rough_sky.txt", rough_sky)
+        if (self.debug):
+            numpy.savetxt("rough_skies.txt", skies)
+            numpy.savetxt("rough_sky.txt", rough_sky)
         rough_snl = SpecAndLines(rough_sky)
 
         # next, match all individual spectra to the mean sky to achieve some common scaling
@@ -2447,7 +2454,7 @@ class BenchSpek(object):
             skysub_all = numpy.zeros_like(rect_sci_target)
             rect_flattened = rect_sci_target
             sky_scalings = []
-            plot=True
+            plot=self.debug
             for fiberid in range(self.raw_traces.n_fibers):
                 spec = rect_flattened[fiberid]
                 spec_snl = SpecAndLines(spec)
