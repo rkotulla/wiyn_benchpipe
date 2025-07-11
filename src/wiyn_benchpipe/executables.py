@@ -34,9 +34,10 @@ def wiyn_benchpipe(cmdline_args=None):
                         type=str, default='setup.json')
     parser.add_argument('--rawdir', dest='raw_dir',
                         type=str, default='raw/')
+    parser.add_argument('--debug', dest='debug', action='store_true', default=False)
     args = parser.parse_args(args=cmdline_args)
 
-    benchspec = BenchSpek(args.config, args.raw_dir)
+    benchspec = BenchSpek(args.config, args.raw_dir, debug=args.debug)
     # print(json.dumps(benchspec.config, indent=2))
 
     benchspec.calibrate(save=True)
