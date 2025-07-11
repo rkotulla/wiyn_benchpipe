@@ -42,6 +42,16 @@ class Config(object):
                     'mode': 'default',
                     'fibers': 'minflux',
                     'wlrange': [6700, 6750]
+                    'wlrange': [6700, 6750],
+                },
+                'plots': 'no',
+                'readnoise': 5.0,
+                'gain': 1.0,
+                'cosmics': {
+                    'clean': 'no',
+                    'sigfrac': 0.5,
+                    'sigclip': 1.5,
+                    'niter': 3,
                 }
             }
         pass
