@@ -574,16 +574,24 @@ class BenchSpek(object):
                 added_new_line = True
 
                 p = line
+                try:
+                    _leftedge = numpy.max(x[:p][end_of_line_left[:p]]+1)
+                except:
+                    _leftedge = p-window_size
+                try:
+                    _rightedge = numpy.min(x[p:][end_of_line_right[p:]])
+                except:
+                    _rightedge = p+window_size
 
-                _left = numpy.max([
+                _left = numpy.nanmax([
                     0,                                        # left edge of data
                     p - window_size,                          # left edge of window size
-                    numpy.max(x[:p][end_of_line_left[:p]]+1)  # either up-turn or no longer significant
+                    _leftedge               # either up-turn or no longer significant
                 ])
-                _right = numpy.min([
+                _right = numpy.nanmin([
                     spec.shape[0] - 1,
                     p + window_size,
-                    numpy.min(x[p:][end_of_line_right[p:]]),
+                    _rightedge,
                 ])
                 # int(numpy.ceil(line + window_size)), ])
                 #
