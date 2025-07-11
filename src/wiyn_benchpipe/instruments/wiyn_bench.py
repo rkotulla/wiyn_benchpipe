@@ -3,6 +3,7 @@ import numpy
 import logging
 
 from ..grating import Grating
+from ..fibertraces import GenericFiberSpecs
 
 class WIYNBenchGrating( Grating ):
     name = "default"
@@ -117,3 +118,14 @@ def wiyn_grating_from_header(header, **kwargs):
     else:
         return Grating(header, **kwargs)
 
+
+
+
+class WIYNBenchFiberSpecs( GenericFiberSpecs ):
+    n_fibers = 82
+    name = "SparsePak @ WIYN"
+    ref_fiber_id = 41
+
+
+    def grating_from_header(self, header):
+        return wiyn_grating_from_header(header)
