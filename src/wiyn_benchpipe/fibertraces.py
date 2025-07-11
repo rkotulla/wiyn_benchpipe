@@ -148,10 +148,51 @@ class GenericFiberSpecs(object):
         # figure out the outer edge of the left & rightmost fibers
         self.logger.info("Finding outer edges")
         far_left = centers[:, 0].reshape((-1, 1)) - 0.5 * avg_peak2peak_vertical
-        print(far_left.shape)
         far_right = centers[:, -1].reshape((-1, 1)) + 0.5 * avg_peak2peak_vertical
         all_lefts = numpy.hstack([far_left, all_troughs])
         all_rights = numpy.hstack([all_troughs, far_right])
+
+        # Refine center positions -- instead of using the peak position use the weighted mean position
+        # for computation, only use pixels between the left and right boundaries we just derived
+        self.logger.info("Refining trace centroiding")
+        centers_refined = numpy.zeros_like(centers, dtype=float)
+        for fiberid in range(self.n_fibers):
+            # all_weighted = []
+            for y_block in range(all_traces_y.shape[0]):
+                y = all_traces_y[y_block]
+                y1,y2 = y-dy,y+dy
+                l = int(all_lefts[y_block, fiberid])
+                r = int(all_rights[y_block, fiberid])
+                # print(y1,y2,l,r)
+                sel_flux = bgsub[y1:y2+1, l:r+1]
+                sel_x = ix[y1:y2+1, l:r+1]
+                good = numpy.isfinite(sel_flux)
+                weighted = numpy.sum((sel_flux * sel_x)[good]) / numpy.sum(sel_flux[good])
+                # print(y,l,r)
+                # all_weighted.append(weighted)
+                centers_refined[y_block, fiberid] = weighted
+        numpy.savetxt("centers_refined", numpy.hstack([all_traces_y.reshape((-1,1)),centers_refined]))
+
+        hdr = pyfits.Header()
+        hdr['DY'] = dy
+        pyfits.HDUList([
+            pyfits.PrimaryHDU(),
+            pyfits.ImageHDU(data=all_traces_y, name='Y', header=hdr),
+            pyfits.ImageHDU(data=centers_refined, name='CENTER'),
+            pyfits.ImageHDU(data=all_lefts, name='LEFT'),
+            pyfits.ImageHDU(data=all_rights, name='RIGHT'),
+            pyfits.ImageHDU(data=centers, name='PEAKS'),
+        ]).writeto("fiber_tracers_orig.fits", overwrite=True)
+
+            # optional, for testing & development, create a plot showing the different modes
+            # fig, ax = plt.subplots()
+            # ax.set_title("fiber: %d" % (fiberid))
+            # ax.scatter(all_traces_y, centers[:, fiber], s=1)
+            # ax.scatter(all_traces_y, all_weighted, s=1)
+            # ax.scatter(all_traces_y, all_lefts[:, fiber], s=1)
+            # ax.scatter(all_traces_y, all_rights[:, fiber], s=1)
+            # ax.plot(self.full_y, self.fullres_centers[:, fiber], c='grey', lw=2, alpha=0.5)
+
 
         # Now we have the coarsely sampled position along the fiber, upscale this to
         # full frame
@@ -161,11 +202,19 @@ class GenericFiberSpecs(object):
         self.fullres_left = numpy.full((y_dim, self.n_fibers), fill_value=numpy.nan)
         self.fullres_right = numpy.full((y_dim, self.n_fibers), fill_value=numpy.nan)
         self.fullres_centers = numpy.full((y_dim, self.n_fibers), fill_value=numpy.nan)
+        self.fullres_peaks = numpy.full((y_dim, self.n_fibers), fill_value=numpy.nan)
         for fiber_id in range(self.n_fibers):
-            for meas, full in zip([all_lefts, all_rights, centers],
-                                  [self.fullres_left, self.fullres_right, self.fullres_centers]):
+            for meas, full in zip([all_lefts, all_rights, centers_refined, centers],
+                                  [self.fullres_left, self.fullres_right, self.fullres_centers, self.fullres_peaks]):
                 polyfit = numpy.polyfit(all_traces_y, meas[:, fiber_id], deg=2)
                 full[:, fiber_id] = numpy.polyval(polyfit, self.full_y)
+        pyfits.HDUList([
+            pyfits.PrimaryHDU(),
+            pyfits.ImageHDU(data=self.fullres_centers, name='CENTER'),
+            pyfits.ImageHDU(data=self.fullres_left, name='LEFT'),
+            pyfits.ImageHDU(data=self.fullres_right, name='RIGHT'),
+            pyfits.ImageHDU(data=self.fullres_peaks, name='PEAKS'),
+        ]).writeto("fiber_tracers_fullres.fits", overwrite=True)
 
         self.logger.info("All done tracing fibers")
 
