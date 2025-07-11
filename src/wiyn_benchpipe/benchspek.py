@@ -2368,9 +2368,9 @@ class BenchSpek(object):
         hdr = phdu.header
         hdr['CTYPE1'] = 'WAVE'
         hdr['CRPIX1'] = 1
-        hdr['CRVAL1'] = wl[0]*1e-10
-        hdr['CD1_1'] = (wl[1]-wl[0])*1e-10
-        hdr['CDELT1'] = (wl[1]-wl[0])*1e-10
+        hdr['CRVAL1'] = wl[0] #*1e-10
+        hdr['CD1_1'] = (wl[1]-wl[0]) #*1e-10
+        hdr['CDELT1'] = (wl[1]-wl[0]) #*1e-10
 
         # also define a linear scale denoting the fiber number
         # Todo: Add this to the instrument definition for more flexibility
