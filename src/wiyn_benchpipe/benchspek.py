@@ -509,8 +509,8 @@ class BenchSpek(object):
         self.logger.debug("continuum subtracted spec: median=%f, sigma=%f" % (_med, _sigma))
 
         width_buffer=1.5
-        _thresholds = numpy.array([10,5,3,2,1])
-        if (min_threshold is not None):
+        _thresholds = numpy.array([1.5]) #[10,5,3,2,1])
+        if (min_threshold is not None and False): # TODO: Fix // disabling this for now
             _thresholds = _thresholds[_thresholds >= min_threshold]
         thresholds = _thresholds * _sigma
         # thresholds = numpy.array([20,5,2]) * _sigma
@@ -565,7 +565,7 @@ class BenchSpek(object):
                             #self.logger.debug("already found a line at this approximate position %d" % (line))
                             continue
                     else:
-                        # self.logger.debug("No counterpart found @ %d, continuing" % (line))
+                        #self.logger.debug("No counterpart found @ %d, continuing" % (line))
                         pass
                 else:
                     # this is the first line, so we for sure don't know about it yet
@@ -642,7 +642,7 @@ class BenchSpek(object):
 
                 full_fit_results = scipy.optimize.leastsq(
                     func=_fit_gauss,
-                    x0=[weighted, 1, peak_flux],
+                    x0=[weighted, 3, peak_flux], ## position,width,amplitude
                     args=(w_x, w_spec)
                 )
                 gaussfit = full_fit_results[0]
@@ -1775,6 +1775,11 @@ class BenchSpek(object):
         self.logger.info("Extracting fiber spectra from master flat")
         self.raw_traces = select_instrument(self.comp_header)
         self.raw_traces.find_trace_fibers(self.master_flat)
+        self.logger.info("Extracting line profiles for each fiber")
+        self.raw_traces.extract_lineprofiles()
+        self.logger.info("Saving line profiles")
+        self.raw_traces.save_lineprofiles(filename="lineprofiles.fits")
+
         # comp_spectra = raw_traces.extract_fiber_spectra(
         #     imgdata=self.master_comp,
         #     weights=self.master_flat,
