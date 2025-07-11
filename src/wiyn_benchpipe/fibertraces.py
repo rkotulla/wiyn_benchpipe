@@ -17,9 +17,10 @@ class GenericFiberSpecs(object):
     sky_fiber_ids = None
     name = "Generic Instrument"
 
-    def __init__(self, logger=None):
+    def __init__(self, logger=None, debug=False):
         if (self.n_fibers < 0):
             raise ValueError("Invalid number of fibers (%d) -- don't use the base class!" % (self.n_fibers))
+        self.debug = debug
 
         if (logger is None):
             logger = logging.getLogger('FiberSpecs')
@@ -84,7 +85,9 @@ class GenericFiberSpecs(object):
             peak_intensity = numpy.mean(prof)
             # print(y, peak_intensity)
 
+            if (self.debug): numpy.savetxt("prof_y=%d" % y, prof)
             peaks, peak_props = scipy.signal.find_peaks(prof, height=0.5 * peak_intensity, distance=3)
+            if (self.debug): numpy.savetxt("profpeaks_y=%d" % y, numpy.array([peaks, prof[peaks]]).T)
             if (peaks.shape[0] != self.n_fibers):  # adjust for other instruments -- 82 is for sparsepak
                 print(y, "off, #=%d" % (peaks.shape[0]))
                 continue
@@ -95,7 +98,7 @@ class GenericFiberSpecs(object):
         self.logger.info("Found all traces across %d samples (dy=%d)" % (len(all_peaks), dy))
         centers = numpy.array(all_peaks)
         all_traces_y = numpy.array(all_traces_y)
-        numpy.savetxt("centers", numpy.hstack([all_traces_y.reshape((-1,1)),centers]))
+        if (self.debug): numpy.savetxt("centers", numpy.hstack([all_traces_y.reshape((-1,1)),centers]))
 
         # derive the average spacing between fibers
         # we need this to determine the boundaries of the fibers at the
@@ -113,16 +116,20 @@ class GenericFiberSpecs(object):
         self.logger.debug("Tracing valley lines that limit fibers")
         inverted = -1. * bgsub
         all_troughs = []
+        print("CENTERS shape", centers.shape)
+#        with open("all_troughs_before", "w") as at:
+#            for y, t in zip(all_traces_y, all_troughs):
+#                print("%f %d %s" % (y, len(t), " ".join(["%.2f" % f for f in t])), file=at)
         for i, y in enumerate(all_traces_y):
             prof = numpy.nanmedian(inverted[y - dy:y + dy, :], axis=0)
-            numpy.savetxt("prof_inv_raw_y=%d" % y, prof)
+            if (self.debug): numpy.savetxt("prof_inv_raw_y=%d" % y, prof)
             prof = scipy.ndimage.gaussian_filter(prof, sigma=1)
-            numpy.savetxt("prof_inv_filt_y=%d" % y, prof)
+            if (self.debug): numpy.savetxt("prof_inv_filt_y=%d" % y, prof)
             peak_intensity = numpy.min(prof)
             # print(y, peak_intensity)
 
             troughs, troughs_props = scipy.signal.find_peaks(prof, height=0.5 * peak_intensity, distance=3)
-            numpy.savetxt("proftrough_y=%d" % y, numpy.array([troughs, prof[troughs]]).T)
+            if (self.debug): numpy.savetxt("proftrough_y=%d" % y, numpy.array([troughs, prof[troughs]]).T)
 
             _left = leftmost_peak[i]
             _right = rightmost_peak[i]
