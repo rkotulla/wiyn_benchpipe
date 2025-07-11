@@ -135,7 +135,7 @@ class SpecAndLines(object):
             ax.set_ylabel("self")
             ax.set_xlim((_min, _max))
             ax.set_ylim((_min, _max))
-            _x = numpy.arange(_min, _max, 10)
+            _x = numpy.linspace(_min, _max, 10)
             for s in [0.9, 1.1, 1.0, 0.8, 1.2, 0.7, 1.3]:
                 ax.plot(_x, _x * s, alpha=0.12)
             ax.plot(_x, _x * weighted_scale)
