@@ -2531,6 +2531,7 @@ class BenchSpek(object):
 
             # TODO: Subtract sky from each fiber: Option1: simple subtract; Option2: Fit optimal shift & amplitude
             self.logger.info("Fitting sky amplitude and performing sky subtraction for each spectrum")
+            sky_subtraction_mode = self.config.get(target_name, "sky", "components")
             skysub_all = numpy.zeros_like(rect_sci_target)
             rect_flattened = rect_sci_target
             sky_scalings = []
@@ -2548,7 +2549,13 @@ class BenchSpek(object):
 
                 sky_scalings.append(skyscale)
                 self.logger.debug("Sky scaling -- fiber %d: %f" % (fiberid, skyscale))
-                skysub_all[fiberid] = spec - final_master_sky_snl.contsub / skyscale
+                if (sky_subtraction_mode == "lines"):
+                    ## only subtract lines
+                    skysub_all[fiberid] = spec - final_master_sky_snl.contsub / skyscale
+                elif (sky_subtraction_mode == "continuum"):
+                    skysub_all[fiberid] = spec - final_master_sky_snl.continuum / skyscale
+                else:
+                    skysub_all[fiberid] = spec - final_master_sky_snl.spec / skyscale
             self.logger.info("Sky scalings:\n%s" % (" ".join(["%7.3f" % s for s in sky_scalings])))
 
             __fn = os.path.join(target_outdir, "%s_skysub.fits" % (target_name))
