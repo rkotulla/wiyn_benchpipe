@@ -15,6 +15,8 @@ class GenericFiberSpecs(object):
     n_fibers = -1
     ref_fiber_id = 0
     sky_fiber_ids = None
+    fiber_profiles = None
+
     name = "Generic Instrument"
 
     def __init__(self, logger=None, debug=False):
@@ -66,7 +68,7 @@ class GenericFiberSpecs(object):
         left = numpy.mean(min_filter[:, left_edge - w:left_edge + w], axis=1).reshape((-1, 1))
         right = numpy.mean(min_filter[:, right_edge - w:right_edge + w], axis=1).reshape((-1, 1))
         slope = (right - left) / (right_edge - left_edge)
-        iy, ix = numpy.indices(trace_image.shape)
+        iy, ix = numpy.indices(trace_image.shape, dtype=float)
         gradient_2d = (ix - left_edge) * slope + left
 
         # subtract the modeled background
@@ -225,13 +227,125 @@ class GenericFiberSpecs(object):
 
         self.logger.info("All done tracing fibers")
 
+    def extract_lineprofiles(self, fiber_ids=None, supersample=10, sample_step=None):
+        # by default generate all profiles
+        if (fiber_ids is None):
+            fiber_ids = numpy.arange(self.n_fibers)
+
+        left = self.fullres_left.T
+        center = self.fullres_centers.T
+        right = self.fullres_right.T
+        # print(left.shape, center.shape, right.shape)
+
+        max_left = numpy.min(left - center)
+        max_right = numpy.max(right - center)
+        left95 = numpy.nanpercentile(left-center, 2)
+        right95 = numpy.nanpercentile(right-center, 98)
+
+        iy,ix = numpy.indices(self.bgsub.shape)
+
+        self.fiber_profiles = {}
+
+        for fiberid in fiber_ids:
+            self.logger.debug("Extracting line profile for fiber %d" % (fiberid+1))
+
+            cutout_left = numpy.floor(numpy.min(left[fiberid])).astype(int)
+            cutout_right = numpy.floor(numpy.max(right[fiberid])).astype(int)
+            # print("#FIBER",fiberid," cutouts:", cutout_left, cutout_right)
+
+            # extract relevant part of flat
+            strip_x = ix[:, cutout_left:cutout_right + 1]  # + cutout_left
+            strip_y = iy[:, cutout_left:cutout_right + 1]  # + cutout_left
+            strip_left = left[fiberid].reshape((-1, 1))
+            strip_center = center[fiberid].reshape(-1, 1)
+            strip_right = right[fiberid].reshape((-1, 1))
+            strip_dx = strip_x - strip_center
+            # print("#FIBER", fiberid, strip_center.shape, strip_left.shape, strip_right.shape, strip_dx.shape)
+
+
+            # mask out pixels in strip that are not part of this line
+            strip_mask = (strip_x > strip_left) & (strip_x <= (strip_right))
+            strip_flat = self.bgsub[:, cutout_left:cutout_right + 1].copy()
+            strip_flat[~strip_mask] = numpy.nan
+
+            # determine final grid
+            step = 1. / supersample
+            min_dx = numpy.min(strip_dx)
+            max_dx = numpy.max(strip_dx)
+            # print(min_dx, max_dx)
+            min_dx_int = int(numpy.floor(min_dx))
+            max_dx_int = int(numpy.ceil(max_dx))
+            # print(min_dx_int, max_dx_int)
+            self.logger.debug("profile range for fiber %d: %.3f -- %.3f" % (fiberid+1, min_dx_int, max_dx_int))
+
+            if (sample_step is None):
+                sample_step = step  # 0.5
+
+            # generate output dx-grid
+            ss_x = numpy.arange(min_dx_int, max_dx_int, step, dtype=float) + 0.5 * step
+            ss_flat = numpy.zeros_like(ss_x)
+
+            for i, _x in enumerate(ss_x):
+                # select pixels relevant for this step along the profile
+                sel = (strip_dx > (_x - sample_step)) & (strip_dx <= (_x + sample_step))
+                sel_flat = strip_flat[sel]
+
+                # generate average profile amplitude for this position, rejecting outliers as good as possible
+                good = numpy.isfinite(sel_flat)
+                try:
+                    for iter in range(3):
+                        stats = numpy.nanpercentile(sel_flat[good], [16, 50, 84])
+                        _sigma = 0.5 * (stats[2] - stats[0])
+                        _med = stats[1]
+                        good = good & (sel_flat > (_med - 3 * _sigma)) & (sel_flat < (_med + 3 * _sigma))
+                        if (numpy.sum(good) <= 0):
+                            break
+                    # print(i, _x, stats, _med, _sigma)
+                except IndexError:
+                    # Ignore IndexErrors -- most likely this means there are no pixels for this dx position
+                    pass
+
+                med = numpy.nanmedian(sel_flat[good])
+                ss_flat[i] = med
+
+            self.fiber_profiles[fiberid] = (ss_x, ss_flat)
+
+        # end:: for fiberid in ....
+
+    def save_lineprofiles(self, lineprofiles=None, filename=None):
+        self.logger.debug("Saving line profiles")
+        if (lineprofiles is None):
+            # by default use the internal line profiles
+            lineprofiles = self.fiber_profiles
+
+        if (lineprofiles is None):
+            self.logger.critical("No line profiles found for saving")
+            return
+
+        # generate multi-extension FITS for output, one extension for each line profile
+        hdulist = [pyfits.PrimaryHDU()]
+        for fiber, (x,prof) in lineprofiles.items():
+            hduext = pyfits.ImageHDU(data=prof, name="FIBER_%03d" % (fiber+1))
+            hdr = hduext.header
+            hdr['CRPIX1'] = 1
+            hdr['CRVAL1'] = x[0]
+            hdr['CD1_1'] = x[1] - x[0]
+            hdr['CDELT1'] = x[1] - x[0]
+            hdr['CTYPE1'] = 'LINEAR'
+            hdr['OBJECT'] = "average line profile -- fiber: %03d" % (fiber+1)
+            hdulist.append(hduext)
+        hdulist = pyfits.HDUList(hdulist)
+        if (filename is not None):
+            hdulist.writeto(filename, overwrite=True)
+        return hdulist
+
     def get_fiber_mask(self, imgdata, fiber_id):
         iy, ix = numpy.indices(imgdata.shape)
         in_this_fiber = (ix > self.fullres_left[:, fiber_id].reshape((-1, 1))) & (
                 ix <= self.fullres_right[:, fiber_id].reshape((-1, 1)))
         return in_this_fiber
 
-    def extract_fiber_spectra(self, imgdata, weights=None, vmin=0, vmax=75000, fibers=None, plot=False):
+    def extract_fiber_spectra(self, imgdata, weights=None, vmin=0, vmax=75000, fibers=None, plot=False, optimize=True):
         # extract all fibers
         iy, ix = numpy.indices(imgdata.shape)
         # print(ix.shape)
@@ -246,28 +360,54 @@ class GenericFiberSpecs(object):
         if fibers is None:
             fibers = numpy.arange(self.n_fibers)
 
-        for fiber_id in fibers:  # range(n_fibers):
+        y,x = numpy.indices(imgdata.shape, dtype=float)
+        left = self.fullres_left.T
+        center = self.fullres_centers.T
+        right = self.fullres_right.T
+
+        for fiberid in fibers:  # range(n_fibers):
             #in_this_fiber = (ix > self.fullres_left[:, fiber_id].reshape((-1, 1))) & (
             #        ix <= self.fullres_right[:, fiber_id].reshape((-1, 1))) &
-            in_this_fiber = self.get_fiber_mask(imgdata, fiber_id) & (weights > 0)
 
-            _mf = weights.copy()
-            _spec = imgdata.copy()
-            _mf[~in_this_fiber] = numpy.nan
-            _spec[~in_this_fiber] = numpy.nan
+            cutout_left = numpy.floor(numpy.min(left[fiberid])).astype(int)
+            cutout_right = numpy.floor(numpy.max(right[fiberid])).astype(int)
+            strip_x = x[:, cutout_left:cutout_right+1]
+            strip_left = left[fiberid].reshape((-1,1))
+            strip_center = center[fiberid].reshape(-1,1)
+            strip_right = right[fiberid].reshape((-1,1))
+            strip_dx = strip_x - strip_center
+            strip_image = imgdata[:, cutout_left:cutout_right+1].copy()
+            strip_mask = (strip_x > strip_left) & (strip_x <= (strip_right))
+
+            strip_weights = weights[:, cutout_left:cutout_right+1].copy()
+            if (optimize and fiberid in self.fiber_profiles):
+                dx,profile = self.fiber_profiles[fiberid]
+                strip_weights = numpy.interp(strip_dx, dx, profile)
+
+            # mask out pixels outside the assigned range
+            strip_image[~strip_mask] = numpy.nan
+            strip_weights[~strip_mask] = numpy.nan
+
+            #in_this_fiber = self.get_fiber_mask(imgdata, fiber_id) & (weights > 0)
+
+            #_mf = weights.copy()
+            #_spec = imgdata.copy()
+            #_mf[~in_this_fiber] = numpy.nan
+            #_spec[~in_this_fiber] = numpy.nan
 
             # pyfits.HDUList([
             #     pyfits.PrimaryHDU(),
             #     pyfits.ImageHDU(data=_mf)
             # ]).writeto("pre_integration_fiber=%d.fits" % (fiber_id), overwrite=True)
 
-            weighted = numpy.nansum(_spec * _mf, axis=1) / numpy.nansum(_mf, axis=1)
+            # weighted = numpy.nansum(_spec * _mf, axis=1) / numpy.nansum(_mf, axis=1)
+            weighted = numpy.nansum(strip_image * strip_weights, axis=1) / numpy.nansum(strip_weights, axis=1)
             # print(weighted.shape)
-            fiber_specs[fiber_id] = weighted
+            fiber_specs[fiberid] = weighted
 
-            _sum = numpy.nansum(_spec, axis=1)
+            #_sum = numpy.nansum(_spec, axis=1)
 
-            pyfits.PrimaryHDU(data=in_this_fiber.astype(int)).writeto("fibermask_%d.fits" % (fiber_id+1), overwrite=True)
+            # pyfits.PrimaryHDU(data=in_this_fiber.astype(int)).writeto("fibermask_%d.fits" % (fiber_id+1), overwrite=True)
 
             if (not plot):
                 continue
