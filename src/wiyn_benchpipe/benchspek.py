@@ -2521,7 +2521,13 @@ class BenchSpek(object):
             ))
             final_master_sky_snl = self.create_sky_spectrum(fiber_snls, sky_fiber_ids=sky_fiber_ids)
             __fn = os.path.join(target_outdir, "%s_skyspec.fits" % (target_name))
-            pyfits.PrimaryHDU(data=final_master_sky_snl.spec).writeto(__fn, overwrite=True)
+            self.write_wavelength_calibrated_image(
+                final_master_sky_snl.spec,
+                target_wl, __fn, target_header)
+            # pyfits.PrimaryHDU(data=final_master_sky_snl.spec).writeto(__fn, overwrite=True)
+            if (self.make_plots):
+                __fn = os.path.join(target_outdir, "%s_skyspec.png" % (target_name))
+                self.plot_sky_spectrum(final_master_sky_snl.spec, __fn)
 
             # TODO: Subtract sky from each fiber: Option1: simple subtract; Option2: Fit optimal shift & amplitude
             self.logger.info("Fitting sky amplitude and performing sky subtraction for each spectrum")
