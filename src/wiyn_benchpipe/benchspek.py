@@ -2134,6 +2134,72 @@ class BenchSpek(object):
         phdu.writeto(output_filename, overwrite=True)
         #
 
+    def plot_sky_spectrum(self, skyspec, plot_fn):
+        self.logger.info("Plotting sky spectrum")
+        # Read the wavelengths of all skylines
+        all = []
+        skylines_fn = get_file("skylines.dat")
+        with open(skylines_fn,"r") as f:
+            lines = f.readlines()
+            for line in lines:
+                if line.startswith("#"):
+                    continue
+                try:
+                    wl = float(line.split(" ")[0])
+                    all.append(wl)
+                except:
+                    continue
+        #skylines_p1 = pandas.read_csv(skylines_fn, comment="#", names=['wl'], header=0, sep='\s+')
+        ohlines_fn = get_file("ohlines.dat")
+        with open(ohlines_fn,"r") as f:
+            lines = f.readlines()
+            for line in lines:
+                if line.startswith("#"):
+                    continue
+                try:
+                    wl = float(line.split(" ")[0])
+                    all.append(wl)
+                except:
+                    continue
+        #ohlines = pandas.read_csv(ohlines_fn, comment="#", names=['wl'], header=0, sep='\s+')
+        #skyline_cat = pandas.concat([skylines_p1,ohlines], ignore_index=True, axis='index')
+        #print(skyline_cat)
+        #skyline_cat.info()
+        skylines = numpy.array(all) #skyline_cat['wl'].to_numpy()
+
+        wl = self.output_wavelength_axis
+        good_data = numpy.isfinite(skyspec)
+        min_wl = numpy.min(wl[good_data])
+        max_wl = numpy.max(wl[good_data])
+        print(min_wl, max_wl)
+
+        sky_amp_stats = numpy.nanpercentile(skyspec, [1, 98])
+        sky_amp_range = sky_amp_stats[1] - numpy.max([sky_amp_stats[0],0])
+        min_sky_amp = sky_amp_stats[0] - 0.03 * sky_amp_range
+        max_sky_amp = sky_amp_stats[1] + 0.03 * sky_amp_range
+        y1,y2 = min_sky_amp, max_sky_amp #-0.03*peak_sky_amp,peak_sky_amp
+        ytext = 0.87*(y2-y1)+y1
+
+        fig, ax = plt.subplots(figsize=(14,4), tight_layout=True)
+        ax.plot(wl, skyspec, lw=0.5, label='sky template')
+        skyy = numpy.ones_like(skylines)
+
+        ax.scatter(skylines, skyy*4, marker="|", c='red', label='OH Lines')
+        ax.set_xlim((min_wl,max_wl))
+        ax.set_ylim((y1,y2))
+        #ax.legend()
+        ax.set_xlabel("Wavelength [A]")
+        ax.set_ylabel("flux [counts/second]")
+
+        selected_lines = (skylines > min_wl) & (skylines < max_wl)
+        for line in skylines[selected_lines]:
+            # print(line)
+            ax.axvline(x=line, ls=":", alpha=0.5, ymax=0.85, c='grey')
+            ax.text(line, ytext, "%.1f" % line, rotation=90, fontsize='xx-small',ha='center', va='bottom')
+        fig.savefig(plot_fn, dpi=200)
+        self.logger.info("sky specturm plot written to %s" % (plot_fn))
+        return
+
     def create_sky_spectrum(self, flattened_spec, sky_fiber_ids):
         self.logger.info("Creating SKY spectrum")
 
