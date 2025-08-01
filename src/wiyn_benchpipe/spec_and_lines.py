@@ -2,10 +2,14 @@
 import numpy
 import matplotlib.pyplot as plt
 import scipy.interpolate
+import multiparlog as mplog
+import logging
 
 class SpecAndLines(object):
 
     def __init__(self, spec, filterwidth=50, steps=10):
+        self.logger = logging.getLogger("Spec&Lines")
+
         self.spec = spec
         self.wl = numpy.arange(spec.shape[0])
 
@@ -79,11 +83,19 @@ class SpecAndLines(object):
         # require a minimum flux
         cs =  other.contsub
         use = numpy.isfinite(cs)
+        if (numpy.sum(use) <= 0):
+            self.logger.error("Unable to match spectra, no valid pixels")
         for i in range(3):
-            _stats = numpy.nanpercentile(cs[use], [16 ,50 ,84])
-            _med = _stats[1]
-            _sigma = 0.5 *(_stats[2 ] -_stats[0])
-            use = use & (cs > _med - 3 *_sigma) & (cs < _med + 3 *_sigma)
+            try:
+                _stats = numpy.nanpercentile(cs[use], [16 ,50 ,84])
+                _med = _stats[1]
+                _sigma = 0.5 *(_stats[2 ] -_stats[0])
+                use = use & (cs > _med - 3 *_sigma) & (cs < _med + 3 *_sigma)
+            except:
+                mplog.log_exception()
+                _med = numpy.nanmedian(cs[use])
+                _sigma = numpy.nanstd(cs[use])
+                pass
         min_flux_other = _med + 2* _sigma
 
         cs = self.contsub
