@@ -17,9 +17,13 @@ class GenericFiberSpecs(object):
     sky_fiber_ids = None
     fiber_profiles = None
 
+    trace_minx = 0
+    trace_maxx = 1e9
+
     name = "Generic Instrument"
 
     def __init__(self, logger=None, debug=False):
+    def __init__(self, logger=None, debug=False, trace_minx=None, trace_maxx=None):
         if (self.n_fibers < 0):
             raise ValueError("Invalid number of fibers (%d) -- don't use the base class!" % (self.n_fibers))
         self.debug = debug
@@ -27,6 +31,11 @@ class GenericFiberSpecs(object):
         if (logger is None):
             logger = logging.getLogger('FiberSpecs')
         self.logger = logger
+
+        if (trace_minx is not None):
+            self.trace_minx = trace_minx
+        if (trace_maxx is not None):
+            self.trace_maxx = trace_maxx
 
         self.logger.info("Loading definitions for %s" % (self.name))
         return
@@ -36,6 +45,9 @@ class GenericFiberSpecs(object):
         if (trace_image is None):
             raise ValueError("Need to provide a trace_image!")
         self.trace_image = trace_image
+
+        trace_minx = self.trace_minx if self.trace_minx is not None else 0
+        trace_maxx = self.trace_maxx if self.trace_maxx is not None else trace_image.shape[1]
 
         # store some information about image dimensions
         self.size_x = trace_image.shape[1]
