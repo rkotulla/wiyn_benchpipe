@@ -4,13 +4,15 @@ import astropy.units as u
 
 from .wiyn_bench import WIYNBenchFiberSpecs
 
-from ..fibertraces import GenericFiberSpecs
+from wiyn_benchpipe.fibertraces import GenericFiberSpecs
 from .wiyn_bench import wiyn_grating_from_header
 
 class SparsepakFiberSpecs( WIYNBenchFiberSpecs ):
     n_fibers = 82
     name = "SparsePak @ WIYN"
     ref_fiber_id = 41
+    trace_minx = 37
+    trace_maxx = 606
 
     _sky_fibers = [22, 16, 2, 37, 54, 80, 70]
     sky_fiber_ids = numpy.array(_sky_fibers, dtype=int) - 1
