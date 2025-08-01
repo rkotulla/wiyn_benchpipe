@@ -22,7 +22,12 @@ class GenericFiberSpecs(object):
 
     name = "Generic Instrument"
 
-    def __init__(self, logger=None, debug=False):
+    input_transpose = False
+    input_flipx = False
+    input_flipy = False
+    input_ext_data = 0
+    input_ext_header = 0
+
     def __init__(self, logger=None, debug=False, trace_minx=None, trace_maxx=None):
         if (self.n_fibers < 0):
             raise ValueError("Invalid number of fibers (%d) -- don't use the base class!" % (self.n_fibers))
@@ -457,6 +462,24 @@ class GenericFiberSpecs(object):
 
     def grating_from_header(self, *args, **kwargs):
         return Grating(*args, **kwargs)
+
+    @classmethod
+    def load_raw_file(cls, filename, logger=None):
+        if (logger is not None):
+            logger.info("Loading file %s (%s)" % (filename, cls.name))
+        hdulist = pyfits.open(filename)
+
+        data = hdulist[cls.input_ext_data].data.astype(float)
+        if (cls.input_transpose):
+            data = data.T
+        if (cls.input_flipx):
+            data = data[:, ::-1]
+        if (cls.input_flipy):
+            data = data[::-1, :]
+
+        header = hdulist[cls.input_ext_header]
+
+        return data, header
 
 # class SparsepakFiberSpecs( GenericFiberSpecs ):
 #     n_fibers = 82
