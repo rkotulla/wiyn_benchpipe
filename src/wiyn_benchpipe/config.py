@@ -42,7 +42,8 @@ class Config(object):
                     'mode': 'default',
                     'fibers': 'minflux',
                     'wlrange': [6700, 6750],
-                    'components': 'both'
+                    'components': 'both',
+                    'match': "spec2sky"
                 },
                 'plots': 'no',
                 'readnoise': 5.0,
