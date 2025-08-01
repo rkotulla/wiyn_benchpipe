@@ -97,7 +97,7 @@ class WIYNBenchGrating( Grating ):
         y_2d0 = (y_2d - (self.ccd_npixels_y / 2)) * self.ccd_pixelsize
         x_2d0 = (x_2d - (self.ccd_npixels_x / 2)) * self.ccd_pixelsize
         dr = numpy.hypot(x_2d0, y_2d0)
-        angle_offset = numpy.arctan(dr / self.grating_camera_distance) * 2.78
+        angle_offset = numpy.arctan(dr / self.grating_camera_distance) * self.camera_magnification
         wavelength = self.line_spacing / self.grating_order * (
             numpy.sin(self.alpha) + numpy.sin(self.beta - angle_offset)
         )
