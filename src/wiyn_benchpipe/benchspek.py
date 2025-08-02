@@ -987,6 +987,14 @@ class BenchSpek(object):
         self.comp_spectrum_full_y0 = full_y0
         self.comp_spectrum_center_y = spec.shape[0]/2
 
+        # generate a tree for the reference lines
+        in_window = (self.ref_inventory['gauss_wl'] >= self.grating_solution.wl_blueedge) & \
+                    (self.ref_inventory['gauss_wl'] <= self.grating_solution.wl_rededge)
+        selected_list = self.ref_inventory[in_window].reset_index(drop=True)
+        # selected_list.info()
+        reflines = selected_list['gauss_wl'].to_numpy()
+        self.logger.info("Found %s calibrated reference lines" % (str(reflines.shape)))
+
         if (make_plots):
             self.logger.debug("Generating initial reference spectrum comparison")
             fig, ax = plt.subplots(figsize=(13, 5), tight_layout=True)
