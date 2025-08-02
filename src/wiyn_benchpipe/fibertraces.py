@@ -97,27 +97,76 @@ class GenericFiberSpecs(object):
         self.logger.debug("Tracing ridge-lines of each fiber")
         dy = 5  ## adjust for binning
         traces = pandas.DataFrame()
+
+        smooth_dx = int(numpy.ceil(bgsub.shape[1] / self.n_fibers * 10))
+
+        #
+        # Go through the entire spectrum in chunks of dy and identify peaks (for spectra tracing)
+        # and valleys between peaks (as boundaries for spectra traces)
+        #
         all_peaks = []
         all_traces_y = []
+        all_valleys = []
         for y in range(dy, bgsub.shape[0], 2 * dy):
             prof = numpy.nanmedian(bgsub[y - dy:y + dy, :], axis=0)
-            peak_intensity = numpy.mean(prof)
-            # print(y, peak_intensity)
 
-            if (self.debug): numpy.savetxt("prof_y=%d" % y, prof)
-            peaks, peak_props = scipy.signal.find_peaks(prof, height=0.5 * peak_intensity, distance=3)
-            if (self.debug): numpy.savetxt("profpeaks_y=%d" % y, numpy.array([peaks, prof[peaks]]).T)
-            if (peaks.shape[0] != self.n_fibers):  # adjust for other instruments -- 82 is for sparsepak
+            # apply some min and max scaling to normalize the area to peaks have values close to 1,
+            # and ideally valleys have values close to 0
+            mins = scipy.ndimage.minimum_filter1d(prof, size=smooth_dx)
+            maxs = scipy.ndimage.maximum_filter1d(prof, size=smooth_dx)
+            minsub = prof - mins
+            maxsub = scipy.ndimage.maximum_filter1d(minsub, size=smooth_dx)
+            norm_prof = (prof - mins) / maxsub
+
+            # Find all peaks
+            peaks, peak_props = scipy.signal.find_peaks(norm_prof, height=0.25, distance=3)
+            valid_peaks = (peaks > trace_minx) & (peaks <= trace_maxx)
+            peaks = peaks[valid_peaks]
+
+            if (self.debug):
+                numpy.savetxt("prof_y=%d" % y, prof)
+                numpy.savetxt("profpeaks_y=%d" % y, numpy.array([peaks, prof[peaks]]).T)
+
+            if (peaks.shape[0] != self.n_fibers):
+                # We didn't find the right number of peaks, so we can't use this one
                 print(y, "off, #=%d" % (peaks.shape[0]))
                 continue
 
+            # reverse the flat, and find all valleys
+            inv_norm = 1. - norm_prof
+            valleys, _ = scipy.signal.find_peaks(inv_norm, height=0.2, distance=3)
+            valid_valley = (valleys >= trace_minx) & (valleys <= trace_maxx)
+            valleys = valleys[valid_valley]
+
+            _left = peaks[0]
+            _right = peaks[-1]
+            good = (valleys > _left) & (valleys < _right)
+            good_valleys = valleys[good]
+            if (len(good_valleys) != self.n_fibers-1):
+                fixed_valleys = []
+                for l,r in zip(peaks[:-1], peaks[1:]):
+                    in_between = (good_valleys > l) & (good_valleys < r)
+
+                    if (numpy.sum(in_between) == 0):
+                        valley_pos = ((l+r)/2)
+                    else:
+                        valley_pos = numpy.nanmedian(good_valleys[in_between])
+                    # if (y == 3105):
+                    #     print(l,r,valley_pos, )
+                    fixed_valleys.append(valley_pos)
+                good_valleys = fixed_valleys
+
             all_peaks.append(peaks)
+            all_valleys.append(good_valleys)
             all_traces_y.append(y)
 
         self.logger.info("Found all traces across %d samples (dy=%d)" % (len(all_peaks), dy))
         centers = numpy.array(all_peaks)
+        valleys = numpy.array(all_valleys)
         all_traces_y = numpy.array(all_traces_y)
-        if (self.debug): numpy.savetxt("centers", numpy.hstack([all_traces_y.reshape((-1,1)),centers]))
+        if (self.debug):
+            numpy.savetxt("centers", numpy.hstack([all_traces_y.reshape((-1,1)),centers]))
+            numpy.savetxt("valleys", numpy.hstack([all_traces_y.reshape((-1,1)),valleys]))
 
         # derive the average spacing between fibers
         # we need this to determine the boundaries of the fibers at the
@@ -131,73 +180,83 @@ class GenericFiberSpecs(object):
         leftmost_peak = numpy.min(centers, axis=1)
         rightmost_peak = numpy.max(centers, axis=1)
 
-        # invert masterflat to search for the minima between the cells
-        self.logger.debug("Tracing valley lines that limit fibers")
-        inverted = -1. * bgsub
-        all_troughs = []
-        print("CENTERS shape", centers.shape)
-#        with open("all_troughs_before", "w") as at:
-#            for y, t in zip(all_traces_y, all_troughs):
-#                print("%f %d %s" % (y, len(t), " ".join(["%.2f" % f for f in t])), file=at)
-        for i, y in enumerate(all_traces_y):
-            prof = numpy.nanmedian(inverted[y - dy:y + dy, :], axis=0)
-            if (self.debug): numpy.savetxt("prof_inv_raw_y=%d" % y, prof)
-            prof = scipy.ndimage.gaussian_filter(prof, sigma=1)
-            if (self.debug): numpy.savetxt("prof_inv_filt_y=%d" % y, prof)
-            peak_intensity = numpy.min(prof)
-            # print(y, peak_intensity)
-
-            troughs, troughs_props = scipy.signal.find_peaks(prof, height=0.5 * peak_intensity, distance=3)
-            if (self.debug): numpy.savetxt("proftrough_y=%d" % y, numpy.array([troughs, prof[troughs]]).T)
-
-            _left = leftmost_peak[i]
-            _right = rightmost_peak[i]
-            good = (troughs > _left) & (troughs < _right)
-            good_troughs = troughs[good]
-            if (len(good_troughs) != self.n_fibers-1):
-                fixed_troughs = []
-                for l,r in zip(centers[i,:-1], centers[i, 1:]):
-                    in_between = (good_troughs > l) & (good_troughs < r)
-                    if (len(in_between) == 0):
-                        fixed_troughs.append((l+r)/2)
-                    else:
-                        fixed_troughs.append(numpy.median(good_troughs[in_between]))
-                good_troughs = fixed_troughs
-            # print(y, peak_intensity, peaks.shape, good_peaks.shape)
-            all_troughs.append(good_troughs)
-
-        with open("all_troughs", "w") as at:
-            for y, t in zip(all_traces_y, all_troughs):
-                print("%f %d %s" % (y, len(t), " ".join(["%.2f" % f for f in t])), file=at)
-        all_troughs = numpy.array(all_troughs)
+#         # invert masterflat to search for the minima between the cells
+#         self.logger.debug("Tracing valley lines that limit fibers")
+#         inverted = -1. * bgsub
+#         all_troughs = []
+#         print("CENTERS shape", centers.shape)
+# #        with open("all_troughs_before", "w") as at:
+# #            for y, t in zip(all_traces_y, all_troughs):
+# #                print("%f %d %s" % (y, len(t), " ".join(["%.2f" % f for f in t])), file=at)
+#         for i, y in enumerate(all_traces_y):
+#             prof = numpy.nanmedian(inverted[y - dy:y + dy, :], axis=0)
+#             if (self.debug): numpy.savetxt("prof_inv_raw_y=%d" % y, prof)
+#             prof = scipy.ndimage.gaussian_filter(prof, sigma=1)
+#             if (self.debug): numpy.savetxt("prof_inv_filt_y=%d" % y, prof)
+#             peak_intensity = numpy.min(prof)
+#             # print(y, peak_intensity)
+#
+#             troughs, troughs_props = scipy.signal.find_peaks(prof, height=0.5 * peak_intensity, distance=3)
+#             if (self.debug): numpy.savetxt("proftrough_y=%d" % y, numpy.array([troughs, prof[troughs]]).T)
+#
+#             _left = leftmost_peak[i]
+#             _right = rightmost_peak[i]
+#             good = (troughs > _left) & (troughs < _right)
+#             good_troughs = troughs[good]
+#             if (len(good_troughs) != self.n_fibers-1):
+#                 fixed_troughs = []
+#                 for l,r in zip(centers[i,:-1], centers[i, 1:]):
+#                     in_between = (good_troughs > l) & (good_troughs < r)
+#                     if (len(in_between) == 0):
+#                         fixed_troughs.append((l+r)/2)
+#                     else:
+#                         fixed_troughs.append(numpy.median(good_troughs[in_between]))
+#                 good_troughs = fixed_troughs
+#             # print(y, peak_intensity, peaks.shape, good_peaks.shape)
+#             all_troughs.append(good_troughs)
+#
+#         with open("all_troughs", "w") as at:
+#             for y, t in zip(all_traces_y, all_troughs):
+#                 print("%f %d %s" % (y, len(t), " ".join(["%.2f" % f for f in t])), file=at)
+#         all_troughs = numpy.array(all_troughs)
 
         # figure out the outer edge of the left & rightmost fibers
         self.logger.info("Finding outer edges")
         far_left = centers[:, 0].reshape((-1, 1)) - 0.5 * avg_peak2peak_vertical
         far_right = centers[:, -1].reshape((-1, 1)) + 0.5 * avg_peak2peak_vertical
-        all_lefts = numpy.hstack([far_left, all_troughs])
-        all_rights = numpy.hstack([all_troughs, far_right])
+        all_lefts = numpy.hstack([far_left, valleys])
+        all_rights = numpy.hstack([valleys, far_right])
+        if (self.debug):
+            numpy.savetxt("all_lefts", numpy.hstack([all_traces_y.reshape((-1, 1)), all_lefts]))
+            numpy.savetxt("all_rights", numpy.hstack([all_traces_y.reshape((-1, 1)), all_rights]))
 
         # Refine center positions -- instead of using the peak position use the weighted mean position
         # for computation, only use pixels between the left and right boundaries we just derived
         self.logger.info("Refining trace centroiding")
         centers_refined = numpy.zeros_like(centers, dtype=float)
         for fiberid in range(self.n_fibers):
+            self.logger.debug("Refining centroiding for fiber %d" % (fiberid))
             # all_weighted = []
             for y_block in range(all_traces_y.shape[0]):
                 y = all_traces_y[y_block]
                 y1,y2 = y-dy,y+dy
-                l = int(all_lefts[y_block, fiberid])
-                r = int(all_rights[y_block, fiberid])
-                # print(y1,y2,l,r)
-                sel_flux = bgsub[y1:y2+1, l:r+1]
-                sel_x = ix[y1:y2+1, l:r+1]
-                good = numpy.isfinite(sel_flux)
-                weighted = numpy.sum((sel_flux * sel_x)[good]) / numpy.sum(sel_flux[good])
-                # print(y,l,r)
-                # all_weighted.append(weighted)
+
+                _l = all_lefts[y_block, fiberid]
+                _r = all_rights[y_block, fiberid]
+                if (numpy.isfinite(_l) and numpy.isfinite(_r)):
+                    l = int(_l)
+                    r = int(_r)
+                    sel_flux = bgsub[y1:y2+1, l:r+1]
+                    sel_x = ix[y1:y2+1, l:r+1]
+                    good = numpy.isfinite(sel_flux)
+                    weighted = numpy.sum((sel_flux * sel_x)[good]) / numpy.sum(sel_flux[good])
+                    # print(y,l,r)
+                    # all_weighted.append(weighted)
+                else:
+                    weighted = centers[y_block, fiberid]
                 centers_refined[y_block, fiberid] = weighted
-        numpy.savetxt("centers_refined", numpy.hstack([all_traces_y.reshape((-1,1)),centers_refined]))
+        if (self.debug):
+            numpy.savetxt("centers_refined", numpy.hstack([all_traces_y.reshape((-1,1)),centers_refined]))
 
         hdr = pyfits.Header()
         hdr['DY'] = dy
@@ -269,6 +328,7 @@ class GenericFiberSpecs(object):
             cutout_left = numpy.floor(numpy.min(left[fiberid])).astype(int)
             cutout_right = numpy.floor(numpy.max(right[fiberid])).astype(int)
             # print("#FIBER",fiberid," cutouts:", cutout_left, cutout_right)
+            self.logger.debug("Maximum extent of fiber: %d -- %d" % (cutout_left, cutout_right))
 
             # extract relevant part of flat
             strip_x = ix[:, cutout_left:cutout_right + 1]  # + cutout_left
@@ -287,8 +347,8 @@ class GenericFiberSpecs(object):
 
             # determine final grid
             step = 1. / supersample
-            min_dx = numpy.min(strip_dx)
-            max_dx = numpy.max(strip_dx)
+            min_dx = numpy.nanmin(strip_dx)
+            max_dx = numpy.nanmax(strip_dx)
             # print(min_dx, max_dx)
             min_dx_int = int(numpy.floor(min_dx))
             max_dx_int = int(numpy.ceil(max_dx))
