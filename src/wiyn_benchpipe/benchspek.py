@@ -1854,11 +1854,23 @@ class BenchSpek(object):
         # self.read_reference_linelist()
 
         # extract lines for reference spectrum
-        self.ref_fiberid = self.raw_traces.ref_fiber_id
+        ref_fibers = numpy.array(self.raw_traces.ref_fiber_id)
+        print("#@#@#@#@#@", self.raw_traces.ref_fiber_id)
+        self.ref_fiberid = numpy.median(numpy.array(self.raw_traces.ref_fiber_id)).astype(int)
+        print("@#@#@#@#@", ref_fibers, ref_fibers.size, self.ref_fiberid)
+        if (ref_fibers.size > 1):
+            # we have more than one reference fiber -- need to median-combine them
+            self.logger.info("Instrument specifies multiple reference fibers -- adding median combine")
+            ref_fibers = []
+            for rf in self.raw_traces.ref_fiber_id:
+                ref_fibers.append(self.comp_spectra[rf])
+            ref_fibers = numpy.array(ref_fibers)
+            master_ref_fiber = numpy.nanmedian(ref_fibers, axis=0)
+        else:
+            master_ref_fiber = self.comp_spectra[self.ref_fiberid]
         # find wavelength solution for one "reference" fiber
         self.wavelength_solution = self.find_wavelength_solution(
-            self.comp_spectra[self.ref_fiberid],
-            make_plots=True
+            master_ref_fiber, make_plots=True, n_brightest=15,
         )
         # print("wavelength solution:", self.wavelength_solution)
 
