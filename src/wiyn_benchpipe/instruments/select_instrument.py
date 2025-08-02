@@ -2,8 +2,10 @@
 import astropy
 import astropy.io.fits as pyfits
 
-from .sparsepak import  SparsepakFiberSpecs
-from .nirwals import NirwalsFiberSpecs
+from .wiyn import * #SparsepakFiberSpecs
+from .salt import *
+
+from . import *
 
 def select_instrument(file_or_hdu, *args, **kwargs):
 
@@ -27,5 +29,7 @@ def select_instrument(file_or_hdu, *args, **kwargs):
             raise ValueError("This fiber type (%s) is not supported" % (fibername))
     elif (instrument == 'NIRWALS'):
         return NirwalsFiberSpecs(*args, **kwargs)
+    elif (instrument == 'RSS'):
+        return SALT_RSS_IFU_FiberSpecs(*args, **kwargs)
     else:
         raise ValueError("Cannot identify instrument %s" % (instrument))

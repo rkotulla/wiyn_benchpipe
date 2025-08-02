@@ -1,10 +1,13 @@
 
 # import instrument setups
-from .wiyn_bench import WIYNBenchFiberSpecs,WIYNBenchGrating
-from .sparsepak import SparsepakFiberSpecs
-from .wiyn_hydra import WiynHydraRedFiberSpecs, WiynHydraBlueFiberSpecs
+#from .wiyn.wiyn_bench import WIYNBenchFiberSpecs,WIYNBenchGrating
+#from .wiyn.sparsepak import SparsepakFiberSpecs
+#from .wiyn.sparsepak import
 
-from .nirwals import NirwalsFiberSpecs
+from .wiyn import *
+from .salt import *
+
+# from wiyn_benchpipe.instruments.salt.nirwals import NirwalsFiberSpecs
 
 # import spectrographs
 
