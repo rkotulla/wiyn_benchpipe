@@ -2574,6 +2574,7 @@ class BenchSpek(object):
             # TODO: Subtract sky from each fiber: Option1: simple subtract; Option2: Fit optimal shift & amplitude
             self.logger.info("Fitting sky amplitude and performing sky subtraction for each spectrum")
             sky_subtraction_mode = self.config.get(target_name, "sky", "components")
+            sky_matching_mode = self.config.get(target_name, "sky", "match")
             skysub_all = numpy.zeros_like(rect_sci_target)
             rect_flattened = rect_sci_target
             sky_scalings = []
@@ -2590,15 +2591,22 @@ class BenchSpek(object):
                     skyscale, _, _ = final_master_sky_snl.match_amplitude(spec_snl, plot=False)
 
                 sky_scalings.append(skyscale)
-                self.logger.debug("Sky scaling -- fiber %d: %f" % (fiberid, skyscale))
+                self.logger.debug("Sky scaling fiber %d -- %s / %s -- scaling: %f " % (
+                    fiberid, sky_subtraction_mode, sky_matching_mode, skyscale))
                 if (sky_subtraction_mode == "lines"):
                     ## only subtract lines
-                    skysub_all[fiberid] = spec - final_master_sky_snl.contsub / skyscale
+                    this_skyspec = final_master_sky_snl.contsub
                 elif (sky_subtraction_mode == "continuum"):
-                    skysub_all[fiberid] = spec - final_master_sky_snl.continuum / skyscale
+                    this_skyspec = final_master_sky_snl.continuum
                 else:
-                    skysub_all[fiberid] = spec - final_master_sky_snl.spec / skyscale
-            self.logger.info("Sky scalings:\n%s" % (" ".join(["%7.3f" % s for s in sky_scalings])))
+                    this_skyspec = final_master_sky_snl.spec
+
+                if (sky_matching_mode == "sky2spec"):
+                    skysub_all[fiberid] = spec - this_skyspec / skyscale
+                else:
+                    skysub_all[fiberid] = spec * skyscale - this_skyspec
+
+            self.logger.debug("Sky scalings:\n%s" % (" ".join(["%7.3f" % s for s in sky_scalings])))
 
             __fn = os.path.join(target_outdir, "%s_skysub.fits" % (target_name))
             self.logger.info("Writing sky-subtracted spectra to %s" % (__fn))
