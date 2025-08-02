@@ -1308,7 +1308,8 @@ class BenchSpek(object):
         comp_line_amp_stats = numpy.nanpercentile(self.comp_line_inventory['gauss_amp'], [16,50,84])
         typical_comp_line_amp = comp_line_amp_stats[2]
         self.logger.info("Spec scaling: ref:%f  comp:%f" % (typical_ref_line_amp, typical_comp_line_amp))
-        axs[0].plot(comp_wl, self.spec_scale(self.comp_spectrum_continuumsub / typical_comp_line_amp), lw=0.4, c='orange', label='data')
+        axs[0].plot(comp_wl, self.spec_scale(self.comp_spectrum_continuumsub / typical_comp_line_amp),
+                    lw=0.7, c='orange', label='data')
         #
         peaks0 = self.comp_spectrum_lines - self.comp_spectrum_center_y
         peaks_wl = numpy.polyval(wavelength_solution, peaks0)
