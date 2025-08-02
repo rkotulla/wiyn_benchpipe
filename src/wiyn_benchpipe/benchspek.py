@@ -133,6 +133,8 @@ class BenchSpek(object):
     def get_cosmic_ray_rejection_options(self, target_name):
         cosmics = self.config.get(target_name, "cosmics", "clean", fallback=None)
         if (cosmics is not None):
+            if (type(cosmics) == str and cosmics.lower() == 'no'):
+                return None
             cosmics = {}
             for opt,default in [('sigfrac', 0.4),
                         ('sigclip', 10),
