@@ -946,13 +946,13 @@ class BenchSpek(object):
         # contsub, peaks = self.find_lines(spec, threshold=500, distance=5)
         # peaks_fine = self.fine_line_centroiding(spec=contsub, line_pos=peaks)
         self.comp_line_inventory, contsub = self.get_refined_lines_from_spectrum(
-            spec, return_contsub=True, min_threshold=5)
-        if (self.debug):
+            spec, return_contsub=True, min_threshold=5, distance=20, window_size=30)
 
         if (n_brightest > 0):
             self.logger.info("Restricting comp line list to brightest %d lines" % (n_brightest))
             amp_sorted = numpy.argsort(self.comp_line_inventory['gauss_amp'])[::-1]
             self.comp_line_inventory = self.comp_line_inventory.iloc[amp_sorted[:n_brightest], :]
+        if (self.debug or True):
             numpy.savetxt("ref_comp_spec", spec)
             numpy.savetxt("ref_comp_spec_contsub", contsub)
             self.comp_line_inventory.to_csv("inventory_comp.csv", index=False)
@@ -1080,6 +1080,8 @@ class BenchSpek(object):
         # print(ref2d.shape)
 
         results_df = pandas.DataFrame()
+        match_radius = numpy.fabs(20 * dispersion)
+        self.logger.info("Matching radius for line matching: %.2f AA" % (match_radius))
         for i_iter, (cw, disp) in enumerate(itertools.product(scan_wl, scan_disp)):
 
             # for simple linear fit -- maybe not as good
@@ -1098,7 +1100,8 @@ class BenchSpek(object):
             #
             # find matches based on simple solution
             #
-            d, i = ref_tree.query(wl, k=1, p=1, distance_upper_bound=2)
+            d, i = ref_tree.query(wl, k=1, p=1, distance_upper_bound=match_radius)
+            # TODO: CHANGE 2 to depend on line width and dispersion
             n_good_line_matches = numpy.sum(i < ref_tree.n)
 
             #
@@ -1114,16 +1117,13 @@ class BenchSpek(object):
                 #
                 ref_wl = reflines[i[match]]
                 lines_y = peaks[match] - central_y
-                #         print(ref_wl)
-                #         print(lines_y)
-                #         print(testfit)
 
                 #
                 # Perform a proper dispersion solution fit using the matched line pairs
                 #
                 testfit = numpy.polyfit(lines_y, ref_wl, deg=2)
                 wl_postfit = numpy.polyval(testfit, peaks2d - central_y)
-                d2, i2 = ref_tree.query(wl_postfit, k=1, p=1, distance_upper_bound=2)
+                d2, i2 = ref_tree.query(wl_postfit, k=1, p=1, distance_upper_bound=match_radius)
                 n_good_line_matches2 = numpy.sum(i2 < ref_tree.n)
                 ref_wl_refined = reflines[i2[i2 < ref_tree.n]]
 
