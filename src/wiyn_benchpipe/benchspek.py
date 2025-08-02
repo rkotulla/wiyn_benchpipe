@@ -913,7 +913,7 @@ class BenchSpek(object):
         # print(sel_wl)
         # ax.axvline(sel_wl) #, ymin=0.4, ymax=1.)
 
-    def find_wavelength_solution(self, spec, lambda_central=None, dispersion=None, min_lines=3, make_plots=True):
+    def find_wavelength_solution(self, spec, lambda_central=None, dispersion=None, min_lines=3, make_plots=True, n_brightest=0):
 
         self.logger.info("Finding wavelength solution")
 
@@ -948,6 +948,11 @@ class BenchSpek(object):
         self.comp_line_inventory, contsub = self.get_refined_lines_from_spectrum(
             spec, return_contsub=True, min_threshold=5)
         if (self.debug):
+
+        if (n_brightest > 0):
+            self.logger.info("Restricting comp line list to brightest %d lines" % (n_brightest))
+            amp_sorted = numpy.argsort(self.comp_line_inventory['gauss_amp'])[::-1]
+            self.comp_line_inventory = self.comp_line_inventory.iloc[amp_sorted[:n_brightest], :]
             numpy.savetxt("ref_comp_spec", spec)
             numpy.savetxt("ref_comp_spec_contsub", contsub)
             self.comp_line_inventory.to_csv("inventory_comp.csv", index=False)
