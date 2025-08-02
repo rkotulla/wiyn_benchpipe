@@ -6,6 +6,7 @@ import scipy.ndimage
 import scipy.signal
 import pandas
 import astropy.io.fits as pyfits
+import astropy.stats
 import matplotlib.pyplot as plt
 
 from .grating import Grating
@@ -422,8 +423,10 @@ class GenericFiberSpecs(object):
                 ix <= self.fullres_right[:, fiber_id].reshape((-1, 1)))
         return in_this_fiber
 
-    def extract_fiber_spectra(self, imgdata, weights=None, vmin=0, vmax=75000, fibers=None, plot=False, optimize=True):
+    def extract_fiber_spectra(self, imgdata, weights=None, vmin=0, vmax=75000, fibers=None,
+                              plot=False, optimize=True, extraction_mode='optimal'):
         # extract all fibers
+        self.logger.info("Using extraction mode: %s" % (extraction_mode))
         iy, ix = numpy.indices(imgdata.shape)
         # print(ix.shape)
         # print(fullres_left[:, 0].shape)
@@ -442,19 +445,36 @@ class GenericFiberSpecs(object):
         center = self.fullres_centers.T
         right = self.fullres_right.T
 
+        profile_fit_width = 0
+        profile_fit_mode = None
+        profile_fit_modes = ['fit', 'clip']
+        clipped = imgdata.copy()
+        if (extraction_mode.startswith("profile")):
+            try:
+                items = extraction_mode.split(".")
+                profile_fit_mode = items[1]
+                profile_fit_width = int(items[2])
+            except:
+                self.logger.warning("Unable to interpret extraction mode '%s'" % (extraction_mode))
+                pass
+            if (profile_fit_mode not in profile_fit_modes):
+                self.logger.warning("Illegal profile mode (%s), allowed are: %s; reverting to 'clip'" % (profile_fit_mode, ", ".join(profile_fit_modes)))
+                profile_fit_mode = 'clip'
+
         for fiberid in fibers:  # range(n_fibers):
             #in_this_fiber = (ix > self.fullres_left[:, fiber_id].reshape((-1, 1))) & (
             #        ix <= self.fullres_right[:, fiber_id].reshape((-1, 1))) &
 
             cutout_left = numpy.floor(numpy.min(left[fiberid])).astype(int)
-            cutout_right = numpy.floor(numpy.max(right[fiberid])).astype(int)
+            cutout_right = numpy.ceil(numpy.max(right[fiberid])).astype(int)
             strip_x = x[:, cutout_left:cutout_right+1]
             strip_left = left[fiberid].reshape((-1,1))
             strip_center = center[fiberid].reshape(-1,1)
             strip_right = right[fiberid].reshape((-1,1))
             strip_dx = strip_x - strip_center
             strip_image = imgdata[:, cutout_left:cutout_right+1].copy()
-            strip_mask = (strip_x > strip_left) & (strip_x <= (strip_right))
+            strip_mask = (strip_x > strip_left) & (strip_x <= (strip_right+1))
+            self.logger.debug("extracting spectrum for fiber %d (x=%d...%d)" % (fiberid+1, cutout_left, cutout_right))
 
             strip_weights = weights[:, cutout_left:cutout_right+1].copy()
             if (optimize and fiberid in self.fiber_profiles):
@@ -478,26 +498,67 @@ class GenericFiberSpecs(object):
             # ]).writeto("pre_integration_fiber=%d.fits" % (fiber_id), overwrite=True)
 
             # weighted = numpy.nansum(_spec * _mf, axis=1) / numpy.nansum(_mf, axis=1)
-            weighted = numpy.nansum(strip_image * strip_weights, axis=1) / numpy.nansum(strip_weights, axis=1)
-            # print(weighted.shape)
-            fiber_specs[fiberid] = weighted
+            if (extraction_mode == 'optimal'):
+                extraction = numpy.nansum(strip_image * strip_weights, axis=1) / numpy.nansum(strip_weights, axis=1)
+            elif (extraction_mode == 'median'):
+                normalized = strip_image / strip_weights
+                extraction = numpy.nanmedian(normalized, axis=1)
+            elif (extraction_mode.startswith("profile")):
+                ny = strip_image.shape[0]
+                extraction = numpy.full((strip_image.shape[0]), fill_value=numpy.nan, dtype=float)
+                profile_x, profile = self.fiber_profiles[fiberid]
+                # dy = profile_fit_width
+                for y in range(ny):
+                    # get rows of spectra
+                    y1 = numpy.max([0, y-profile_fit_width])
+                    y2 = numpy.min([ny, y+profile_fit_width+1])
+                    dx = strip_dx[y1:y2, :]
+                    flux = strip_image[y1:y2, :]
 
-            #_sum = numpy.nansum(_spec, axis=1)
+                    # normalize each row with the profile intensity
+                    _prof = numpy.interp(dx, profile_x, profile)
+                    flux_prof = flux/_prof
 
+                    # reject outliers
+                    good = numpy.isfinite(flux_prof)
+                    for i in range(3):
+                        try:
+                            _stats = numpy.nanpercentile(flux_prof[good], [16,50,84])
+                            _med = _stats[1]
+                            _sigma = 0.5*(_stats[2]-_stats[0])
+                            good = good & (flux_prof > (_med-3*_sigma)) & (flux_prof < (_med+3*_sigma))
+                        except:
+                            continue
+
+                    if (profile_fit_mode == 'fit'):
+                        extraction[y] = _med
+                    elif (profile_fit_mode == 'clip'):
+                        useful = good[profile_fit_width]
+                        clip_profile = _prof[profile_fit_width][useful]
+                        clip_flux = flux[profile_fit_width][useful]
+                        extraction[y] = numpy.nansum(clip_flux * clip_profile) / numpy.nansum(clip_profile)
+
+                        # save output of clipped data
+                        strip_clip = clipped[:, cutout_left:cutout_right+1]
+                        strip_clip[y, :][~good[profile_fit_width]] = numpy.nan
+
+                #end for _y
+            # end processing single fiber
+
+            fiber_specs[fiberid] = extraction
             # pyfits.PrimaryHDU(data=in_this_fiber.astype(int)).writeto("fibermask_%d.fits" % (fiber_id+1), overwrite=True)
 
-            if (not plot):
-                continue
+            if (plot):
+                fig, ax = plt.subplots()
+                # ax.imshow(in_this_fiber.astype(int), origin='lower')
+                # ax.scatter(full_y, weighted, s=0.2, label='weighted')
+                # ax.scatter(full_y, _sum/4, s=0.2, label='sum')
+                ax.plot(self.full_y, extraction, lw=0.3)
+                # ax.legend()
+                ax.set_ylim((vmin, vmax))
+                fig.savefig("fiber_extraction_%03d.png" % (fiberid+1))
 
-            fig, ax = plt.subplots()
-            # ax.imshow(in_this_fiber.astype(int), origin='lower')
-            # ax.scatter(full_y, weighted, s=0.2, label='weighted')
-            # ax.scatter(full_y, _sum/4, s=0.2, label='sum')
-            ax.plot(self.full_y, weighted, lw=0.3)
-            # ax.legend()
-            ax.set_ylim((vmin, vmax))
-
-        return fiber_specs
+        return fiber_specs, clipped
 
     def get_fiber_spacing(self):
         frc = self.fullres_centers
