@@ -152,13 +152,13 @@ class BenchSpek(object):
                 self.logger.warning("Specified input file (%s) not found" % (_fn))
                 continue
             try:
-                hdulist = pyfits.open(_fn)
+                data, _header = self.instrument.load_raw_file(_fn, logger=self.logger)
             except OSError:
                 self.logger.critical("File %s can not be read" % (_fn))
                 continue
             if (header is None):
-                header = hdulist[0].header
-            data = hdulist[0].data.astype(float)
+                header = _header
+
             if (bias is not None):
                 data -= bias
             if (cosmics is not None):
