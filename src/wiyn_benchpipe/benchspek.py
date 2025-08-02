@@ -942,6 +942,16 @@ class BenchSpek(object):
         lambda_central = self.grating_solution.central_wavelength
         dispersion = self.grating_solution.wl_polyfit[-2]
 
+        # Save the calibration spectrum, including the wavelength solution from the grating model
+        phdu = pyfits.PrimaryHDU(data=spec)
+        phdu.header['CD1_1'] = dispersion
+        phdu.header['CRVAL1'] = lambda_central * 1e10
+        phdu.header['CRPIX1'] = 1024.
+        phdu.header['CTYPE1'] = "WAVE-W2A"
+        _fn = "wavelength_comp_spectrum.fits"
+        phdu.writeto(_fn, overwrite=True)
+        self.logger.info("Wrote comp spectrum used for initial wavelength calibration to %s" % (_fn))
+
         # find peaks in the specified spectrum
         # contsub, peaks = self.find_lines(spec, threshold=500, distance=5)
         # peaks_fine = self.fine_line_centroiding(spec=contsub, line_pos=peaks)
