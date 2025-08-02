@@ -1837,7 +1837,7 @@ class BenchSpek(object):
 
         # self.flat_spectra = self.extract_spectra_raw(imgdata=self.master_flat, weights=self.master_flat)
         self.logger.info("Extracting trace spectra from flatfield")
-        self.flat_spectra = self.raw_traces.extract_fiber_spectra(
+        self.flat_spectra,_ = self.raw_traces.extract_fiber_spectra(
             imgdata=self.master_flat, weights=self.master_flat)
         # print("flat_spectra.shape", self.flat_spectra.shape)
         pyfits.PrimaryHDU(data=self.flat_spectra).writeto("flat_spectra.fits", overwrite=True)
@@ -1845,8 +1845,8 @@ class BenchSpek(object):
 
         self.logger.info("Extracting fiber spectra from master comp")
         # self.comp_spectra = self.extract_spectra_raw(imgdata=self.master_comp, weights=self.master_flat)
-        self.comp_spectra = self.raw_traces.extract_fiber_spectra(
-            imgdata=self.master_comp, weights=self.master_flat)
+        self.comp_spectra,comp_clipped = self.raw_traces.extract_fiber_spectra(
+            imgdata=self.master_comp, weights=self.master_flat, extraction_mode='profile.clip.2')
         # print(self.comp_spectra)
         pyfits.PrimaryHDU(data=self.comp_spectra).writeto("comp_spectra.fits", overwrite=True)
         if (self.debug): numpy.savetxt("comp_spectra2.dat", self.comp_spectra)
@@ -1912,7 +1912,7 @@ class BenchSpek(object):
 
         # also extract and wavelength-calibrate all flat spectra
         self.logger.info("Extracting and calibrating all FLAT spectra")
-        flat_spectra = self.raw_traces.extract_fiber_spectra(
+        flat_spectra,_ = self.raw_traces.extract_fiber_spectra(
             imgdata=self.master_flat,
             weights=self.master_flat,
         )
@@ -2004,7 +2004,7 @@ class BenchSpek(object):
         # In the first iteration, extract all flatfield fiber spectra in
         # raw pixel coordinates (without any interpolation)
         #
-        self.flat_spectra = self.raw_traces.extract_fiber_spectra(
+        self.flat_spectra,_ = self.raw_traces.extract_fiber_spectra(
             imgdata=self.master_flat, weights=self.master_flat)
 
         pixel = numpy.arange(self.flat_spectra.shape[1], dtype=float)
@@ -2116,7 +2116,7 @@ class BenchSpek(object):
         # _left = int(pixel[0] + 0.4 * _wl_range)
 
     def get_rectified_fiber_flatfields(self, filter_width=50):
-        self.flat_fibers = self.rect_traces.extract_fiber_spectra(
+        self.flat_fibers,_ = self.rect_traces.extract_fiber_spectra(
             imgdata=self.flat_rectified_2d,
             weights=self.flat_rectified_2d,
         )
@@ -2525,8 +2525,8 @@ class BenchSpek(object):
             # pyfits.PrimaryHDU(data=target_combined, header=target_header).writeto(__fn, overwrite=True)
 
             self.logger.info("Extracting trace spectra [target: %s]" % (target_name))
-            sci_spectra = self.raw_traces.extract_fiber_spectra(
-                imgdata=target_combined, weights=self.master_flat)
+            sci_spectra,_ = self.raw_traces.extract_fiber_spectra(
+                imgdata=target_combined, weights=self.master_flat, extraction_mode='profile.clip.2')
 
             # for human verification, extract and rectify all comp spectra
             self.logger.info("Appying wavelength calibrating to extracted spectra")
