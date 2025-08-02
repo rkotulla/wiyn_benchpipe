@@ -1790,6 +1790,13 @@ class BenchSpek(object):
 
         cosmic_options = self.get_cosmic_ray_rejection_options(None)
 
+        # find first file
+        flatlist = self.config.get('flat')
+        flatlist = [os.path.join(self.raw_dir, fn) for fn in flatlist]
+        self.instrument = select_instrument(flatlist[0])
+        # print("INSTRUMENT:", self.instrument.name)
+        # print(type(self.instrument))
+
         _master_bias_fn = "master_bias.fits" if save else None
         self.make_master_bias(save=_master_bias_fn, cosmics=cosmic_options)
 
