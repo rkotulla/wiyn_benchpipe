@@ -10,12 +10,23 @@ except:
     print("Unknown error")
     sys.exit(-1)
 
+
+exec = None
 if (command == "reduce"):
-    wiyn_benchpipe(args[1:])
+    exec = wiyn_benchpipe
 elif (command == "region"):
-    region_file_from_output(args[1:])
+    exec = region_file_from_output
 elif (command == "sparsepaksim"):
-    sparsepak_simulator(args[1:])
+    exec = sparsepak_simulator
+elif (command == "preview"):
+    exec = grating_preview
+elif (command == "model2d"):
+    exec = grating_model_2d
 else:
     print("Unknown command %s" % (command))
+    sys.exit(-1)
+
+# run command
+return_value = exec(args[1:])
+sys.exit(return_value)
 
