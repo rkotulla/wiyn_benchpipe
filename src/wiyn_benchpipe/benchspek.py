@@ -754,7 +754,7 @@ class BenchSpek(object):
         if (ref_spec_fn is None):
             ref_spec_fn = self.config.get('linelist') # "scidoc2212.fits"
         if (not os.path.isfile(ref_spec_fn)):
-            self.logger.info("Linelist file (%s) not found in current directory, trying data repository instead")
+            self.logger.info("Linelist file (%s) not found in current directory, trying data repository instead" % (ref_spec_fn))
             _fn = get_file(ref_spec_fn)
             if (not os.path.isfile(_fn)):
                 self.logger.error("Unable to locate linelist file (checked %s and %s)" % (
@@ -765,7 +765,8 @@ class BenchSpek(object):
                 ref_spec_fn = _fn
 
         self.logger.info("Processing linelists from %s" % (ref_spec_fn))
-        if (ref_spec_fn.endswith(".csv")):
+        _, ext = os.path.splitext(ref_spec_fn)
+        if (ext in ['.csv', '.dat', '.txt']):
             # load using pandas
             self.logger.info("Loading linelist catalog")
             return self.find_reflines_from_csv(ref_spec_fn, wl_min, wl_max)
