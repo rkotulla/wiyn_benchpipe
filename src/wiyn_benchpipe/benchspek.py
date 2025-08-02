@@ -1319,6 +1319,10 @@ class BenchSpek(object):
             axs[0].scatter(self.ref_inventory['gauss_wl'],
                            numpy.ones_like(self.ref_inventory['gauss_center']) * 0.6,
                            c='blue', marker="|")
+        for line in self.ref_inventory['gauss_wl']:
+            axs[0].axvline(x=line, ymax=0.9, lw=0.4, color='blue', alpha=0.4)
+            axs[0].text(line, 0.9, " %d" % (line), rotation='vertical',
+                        ha='center', fontsize='xx-small', c='blue')
         # print(finelines['center'])
         #
         axs[0].set_xlim((wl_min, wl_max))
