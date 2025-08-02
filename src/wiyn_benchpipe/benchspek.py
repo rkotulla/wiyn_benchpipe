@@ -694,9 +694,12 @@ class BenchSpek(object):
 
             # require the gauss-fits to have similar peaks to the actual data
             amp_ratio = line_inventory['peak'] / line_inventory['gauss_amp']
-            good = (amp_ratio > 0.5) &  (amp_ratio < 1.5)                    # gauss is a reasonable fit
-            good = good & (line_inventory['raw_width'] > min_pixels)         # minimum number of pixels detected
-            good = good & (numpy.isfinite(line_inventory['gauss_center']))   # has a valid gauss fit
+            good_amps = (amp_ratio > 0.5) &  (amp_ratio < 1.5)                    # gauss is a reasonable fit
+            good_width = (line_inventory['raw_width'] > min_pixels)         # minimum number of pixels detected
+            good_fit = (numpy.isfinite(line_inventory['gauss_center']))   # has a valid gauss fit
+            self.logger.debug("Good... amps: %d // width: %d // fit: %d" % (
+                numpy.sum(good_amps), numpy.sum(good_width), numpy.sum(good_fit)))
+            good = good_width & good_fit
             self.logger.debug("Good @ start: %d" % (numpy.sum(good)))
 
             # only select lines with "typical" line widths
