@@ -1000,39 +1000,55 @@ class BenchSpek(object):
             fig, ax = plt.subplots(figsize=(13, 5), tight_layout=True)
             ax.plot(full_y, contsub, lw=0.5)
             # ax.plot(wl, contsub, lw=0.5)
-            ylabelpos = numpy.nanpercentile(self.comp_line_inventory['gauss_center'].to_numpy(), 85)
+            peak85 = numpy.nanpercentile(self.comp_line_inventory['gauss_amp'].to_numpy(), 85)
+            ymax = 1.1 * peak85
+            ymin = -0.02 * peak85
+            y1 = 0.9 * ymax
+            y2 = 0.8 * ymax
             for p in peaks:
-                ax.axvline(x=p, ymin=0.0, ymax=0.8, lw=0.2, color='red', alpha=0.5)
-                ax.text(p, ylabelpos, "%d" % (p), rotation='vertical', ha='center', fontsize='small')
+                ax.axvline(x=p, ymin=0.0, ymax=0.9, lw=0.2, color='red', alpha=0.5)
+                ax.text(p, y1, "%d" % (p), rotation='vertical', ha='center', fontsize='small')
             #     if (reflines is not None):
             #         ax.scatter(reflines, numpy.ones_like(reflines)*2500, marker="|")
             # ax.set_yscale('log')
-            ax.set_ylim(-0.02*ylabelpos, ylabelpos*1.1)
+            ax.set_ylim(ymin, ymax)
             ax.set_xlabel("comp spectrum position [pixel]")
             ax.set_ylabel("comp spectrum amplitude")
             fig.savefig("reference_spectrum.png", dpi=300)
             self.logger.debug("Saved plot to reference_spectrum.png")
 
-        # generate a tree for the reference lines
-        in_window = (self.ref_inventory['gauss_wl'] >= self.grating_solution.wl_blueedge) & \
-                    (self.ref_inventory['gauss_wl'] <= self.grating_solution.wl_rededge)
-        selected_list = self.ref_inventory[in_window].reset_index(drop=True)
-        selected_list.info()
-        reflines = selected_list['gauss_wl'].to_numpy()
-        self.logger.info("Found %s calibrated reference lines" % (str(reflines.shape)))
 
-        if (True):
-            fig, ax = plt.subplots(figsize=(13, 5))
+            self.logger.debug("Generating initial reference spectrum comparison [wavelength]")
+            fig, ax = plt.subplots(figsize=(13, 5), tight_layout=True)
             ax.plot(full_wl, contsub, lw=0.5)
-            # ax.plot(wl, contsub, lw=0.5)
-            ylabelpos = 20000
+            # ylabelpos = numpy.nanpercentile(self.comp_line_inventory['gauss_center'].to_numpy(), 85)
             for p in peaks_wl:
-                ax.axvline(x=p, ymin=0.0, ymax=0.8, lw=0.2, color='red', alpha=0.5)
-                ax.text(p, ylabelpos, "%d" % (p), rotation='vertical', ha='center')
-            ax.scatter(reflines, numpy.ones_like(reflines)*2500, marker="|")
-            # ax.set_yscale('log')
-            ax.set_ylim(0, 25000)
+                ax.axvline(x=p, ymin=0.0, ymax=0.9, lw=0.2, color='red', alpha=0.5)
+                ax.text(p, y1, "%d" % (p), rotation='vertical', ha='center', fontsize='xx-small', c='red')
+            for rl in reflines:
+                ax.axvline(x=rl, ymin=0.0, ymax=0.8, lw=0.2, color='green', alpha=0.5)
+                ax.text(rl, y2, "%d" % (rl), rotation='vertical', ha='center', fontsize='xx-small', c='green')
+            ax.set_ylim(ymin, ymax)
+            ax.set_xlabel("comp spectrum position [pixel]")
+            ax.set_ylabel("comp spectrum amplitude")
             fig.savefig("reference_spectrum_wlcal.png", dpi=300)
+            self.logger.debug("Saved plot to reference_spectrum_wlcal.png")
+
+
+
+        # if (True):
+        #     fig, ax = plt.subplots(figsize=(13, 5))
+        #     ax.plot(full_wl, contsub, lw=0.5)
+        #     # ax.plot(wl, contsub, lw=0.5)
+        #     ylabelpos = 20000
+        #     for p in peaks_wl:
+        #         ax.axvline(x=p, ymin=0.0, ymax=0.8, lw=0.2, color='red', alpha=0.5)
+        #         ax.text(p, ylabelpos, "%d" % (p), rotation='vertical', ha='center')
+        #     for rp in
+        #     ax.scatter(reflines, numpy.ones_like(reflines)*2500, marker="|")
+        #     # ax.set_yscale('log')
+        #     ax.set_ylim(0, 25000)
+        #     fig.savefig("reference_spectrum_wlcal.png", dpi=300)
 
         ref2d = numpy.array([reflines, reflines]).T
         # print(ref2d.shape)
