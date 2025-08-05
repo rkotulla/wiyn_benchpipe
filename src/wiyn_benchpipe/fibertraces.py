@@ -62,8 +62,9 @@ class GenericFiberSpecs(object):
             raise ValueError("Need to provide a trace_image!")
         self.trace_image = trace_image
 
-        trace_minx = self.trace_minx if self.trace_minx is not None else 0
-        trace_maxx = self.trace_maxx if self.trace_maxx is not None else trace_image.shape[1]
+        trace_minx = self.trace_minx/self.get_binning_x() if self.trace_minx is not None else 0
+        trace_maxx = self.trace_maxx/self.get_binning_x() if self.trace_maxx is not None else trace_image.shape[1]
+        self.logger.debug("Limiting traces to %d <= x <= %d [binned pixels]" % (trace_minx, trace_maxx))
 
         # store some information about image dimensions
         self.size_x = trace_image.shape[1]
@@ -613,6 +614,9 @@ class GenericFiberSpecs(object):
 
     def grating_from_header(self, *args, **kwargs):
         return Grating(*args, **kwargs)
+
+    def get_binning_x(self):
+        return 1
 
     @classmethod
     def load_raw_file(cls, filename, logger=None):
