@@ -2,8 +2,8 @@
 import numpy
 import logging
 
-from ..grating import Grating
-from ..fibertraces import GenericFiberSpecs
+from ...grating import Grating
+from ...fibertraces import GenericFiberSpecs
 
 class WIYNBenchGrating( Grating ):
     name = "default"
@@ -16,7 +16,9 @@ class WIYNBenchGrating( Grating ):
     central_wavelength = numpy.nan
     camera_magnification = 2.78
 
-    def __init__(self, header, midline_x=None):
+    def __init__(self, header, midline_x=None, *args, **kwargs):
+        super().__init__(header, *args, **kwargs)
+
         self.logger = logging.getLogger(self.name)
 
         self.header = header
@@ -131,6 +133,11 @@ class WIYNBenchFiberSpecs( GenericFiberSpecs ):
     name = "SparsePak @ WIYN"
     ref_fiber_id = 41
 
-
     def grating_from_header(self, header):
         return wiyn_grating_from_header(header)
+
+    def get_binning_x(self):
+        if (self.header is not None):
+            if ("CCDXBIN" in self.header):
+                return self.header["CCDXBIN"]
+        return 1
