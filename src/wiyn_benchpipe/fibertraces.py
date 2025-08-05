@@ -109,6 +109,9 @@ class GenericFiberSpecs(object):
         # Go through the entire spectrum in chunks of dy and identify peaks (for spectra tracing)
         # and valleys between peaks (as boundaries for spectra traces)
         #
+        raw_all_peaks = []
+        raw_all_y = []
+
         all_peaks = []
         all_traces_y = []
         all_valleys = []
@@ -127,6 +130,9 @@ class GenericFiberSpecs(object):
             peaks, peak_props = scipy.signal.find_peaks(norm_prof, height=0.25, distance=3)
             valid_peaks = (peaks > trace_minx) & (peaks <= trace_maxx)
             peaks = peaks[valid_peaks]
+
+            raw_all_y.append(y)
+            raw_all_peaks.append(peaks)
 
             if (self.debug):
                 numpy.savetxt("prof_y=%d" % y, prof)
@@ -164,6 +170,20 @@ class GenericFiberSpecs(object):
             all_peaks.append(peaks)
             all_valleys.append(good_valleys)
             all_traces_y.append(y)
+
+        # make a quick & dirty plot showing all line traces; also export in ds9 format for visualization
+        self.logger.info("Exporting all trace data as plot and ds9 region file")
+        ds9_reg = open("linetraces.reg", "w")
+        print(DS9_HEADER, file=ds9_reg)
+        fig, ax = plt.subplots(figsize=(12,12))
+        for y,peaks in zip(raw_all_y, raw_all_peaks):
+            peaks = numpy.array(peaks)
+            _y = numpy.ones_like(peaks) * y
+            for x in peaks:
+                print("point(%f,%f) # point=cross" % (x+1,y+1), file=ds9_reg)
+            ax.scatter(peaks, _y, marker='+', s=2)
+        fig.tight_layout()
+        fig.savefig("linetraces.png", dpi=200)
 
         self.logger.info("Found all traces across %d samples (dy=%d)" % (len(all_peaks), dy))
         centers = numpy.array(all_peaks)
