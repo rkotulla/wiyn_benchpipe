@@ -107,6 +107,9 @@ class WIYNBenchGrating( Grating ):
 class Grating_Echelle316(WIYNBenchGrating):
     lines_per_mm = 316
     name = "316@63"
+class Grating_WIYN_600_101(WIYNBenchGrating):
+    lines_per_mm = 600
+    name = "600@10.1"
 
 
 
@@ -115,6 +118,8 @@ def wiyn_grating_from_header(header, **kwargs):
     grating_name = header['GRATNAME']
     if (grating_name == '316@63.4'):
         return Grating_Echelle316(header, **kwargs)
+    elif (grating_name == '600@10.1'):
+        return Grating_WIYN_600_101(header, **kwargs)
     else:
         return Grating(header, **kwargs)
 
