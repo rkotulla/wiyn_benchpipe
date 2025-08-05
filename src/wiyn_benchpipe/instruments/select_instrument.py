@@ -24,12 +24,14 @@ def select_instrument(file_or_hdu, *args, **kwargs):
     if (instrument == 'Bench Spectrograph'):
         fibername = hdr['FIBRNAME']
         if (fibername == 'SparsePak'):
-            return SparsepakFiberSpecs(*args, **kwargs)
+            return SparsepakFiberSpecs(header=hdr, *args, **kwargs)
+        elif (fibername == "Blue"):
+            return WiynHydraBlueFiberSpecs(header=hdr, *args, **kwargs)
         else:
             raise ValueError("This fiber type (%s) is not supported" % (fibername))
     elif (instrument == 'NIRWALS'):
-        return NirwalsFiberSpecs(*args, **kwargs)
+        return NirwalsFiberSpecs(header=hdr, *args, **kwargs)
     elif (instrument == 'RSS'):
-        return SALT_RSS_IFU_FiberSpecs(*args, **kwargs)
+        return SALT_RSS_IFU_FiberSpecs(header=hdr, *args, **kwargs)
     else:
         raise ValueError("Cannot identify instrument %s" % (instrument))
