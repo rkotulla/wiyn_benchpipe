@@ -17,6 +17,7 @@ class GenericFiberSpecs(object):
     ref_fiber_id = 0
     sky_fiber_ids = None
     fiber_profiles = None
+    header = None
 
     trace_minx = 0
     trace_maxx = 1e9
@@ -29,7 +30,7 @@ class GenericFiberSpecs(object):
     input_ext_data = 0
     input_ext_header = 0
 
-    def __init__(self, logger=None, debug=False, trace_minx=None, trace_maxx=None):
+    def __init__(self, logger=None, debug=False, trace_minx=None, trace_maxx=None, header=None):
         if (self.n_fibers < 0):
             raise ValueError("Invalid number of fibers (%d) -- don't use the base class!" % (self.n_fibers))
         self.debug = debug
@@ -42,6 +43,9 @@ class GenericFiberSpecs(object):
             self.trace_minx = trace_minx
         if (trace_maxx is not None):
             self.trace_maxx = trace_maxx
+
+        if (header is not None):
+            self.header = header
 
         self.logger.info("Loading definitions for %s" % (self.name))
         return
