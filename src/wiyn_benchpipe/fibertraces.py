@@ -632,7 +632,7 @@ class GenericFiberSpecs(object):
         if (cls.input_flipy):
             data = data[::-1, :]
 
-        header = hdulist[cls.input_ext_header]
+        header = hdulist[cls.input_ext_header].header
 
         return data, header
 
