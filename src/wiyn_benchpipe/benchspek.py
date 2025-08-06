@@ -504,6 +504,7 @@ class BenchSpek(object):
 
         contsub = spec-cont
         x = numpy.arange(spec.shape[0])
+        numpy.savetxt("refined_lines_contsub", numpy.array([x, contsub, spec, cont, mins]).T)
 
         supersample = 5
         markers = ['x', 'o', '+', 'o']
@@ -701,7 +702,7 @@ class BenchSpek(object):
                 self.logger.debug("No new lines found, aborting search")
                 break
 
-        if (self.debug): line_inventory.to_csv("line_inventory_before_filtering.csv", index=False)
+        if (self.debug or True): line_inventory.to_csv("line_inventory_before_filtering.csv", index=False)
         if (filter):
             # apply some filtering:
             self.logger.debug("Applying filtering [start: %d]" % (len(line_inventory.index)))
@@ -806,6 +807,7 @@ class BenchSpek(object):
         fig, ax = plt.subplots(figsize=(13, 4))
         _x = numpy.arange(s.shape[0], dtype=float) + 1.
         _l = (_x - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
+        numpy.savetxt("reference_spectrum.dmp", numpy.array([_l,_x, s]).T)
 
         test_inventory, contsub = self.get_refined_lines_from_spectrum(
             spec=s, return_contsub=True, min_threshold=10)
@@ -911,6 +913,7 @@ class BenchSpek(object):
         #
         # Repeat line extraction etc, now that we have a resolution-matched reference spectrum
         #
+        numpy.savetxt("reference_spectrum_smoothed.dmp", numpy.array([_l,_x, smoothed]).T)
         ref_inventory = self.get_refined_lines_from_spectrum(spec=smoothed) #, return_contsub=True)
         ref_inventory['gauss_wl'] = (ref_inventory['gauss_center'] - hdu[0].header['CRPIX1']) * hdu[0].header['CD1_1'] + hdu[0].header['CRVAL1']
 
@@ -956,15 +959,14 @@ class BenchSpek(object):
         lambda_central = self.grating_solution.central_wavelength
         dispersion = self.grating_solution.wl_polyfit[-2]
 
-        # Save the calibration spectrum, including the wavelength solution from the grating model
-        phdu = pyfits.PrimaryHDU(data=spec)
-        phdu.header['CD1_1'] = dispersion
-        phdu.header['CRVAL1'] = lambda_central * 1e10
-        phdu.header['CRPIX1'] = 1024.
-        phdu.header['CTYPE1'] = "WAVE-W2A"
-        _fn = "wavelength_comp_spectrum.fits"
-        phdu.writeto(_fn, overwrite=True)
-        self.logger.info("Wrote comp spectrum used for initial wavelength calibration to %s" % (_fn))
+        # wl_padding = 0.05*(self.grating_solution.wl_rededge - self.grating_solution.wl_blueedge)
+        # self.find_reflines(
+        #     sci_sigma=1.5,
+        #     wl_min=(self.grating_solution.wl_blueedge - wl_padding),
+        #     wl_max=(self.grating_solution.wl_rededge + wl_padding)
+        # )
+        # import sys
+        # sys.exit(-1)
 
         # find peaks in the specified spectrum
         # contsub, peaks = self.find_lines(spec, threshold=500, distance=5)
@@ -999,9 +1001,10 @@ class BenchSpek(object):
         # find typical linewidth
         line_width_px = numpy.nanmedian(self.comp_line_inventory['gauss_width'])
         line_width_AA = numpy.fabs(line_width_px * dispersion)
-        self.logger.debug("Typical line width in comp spectrum: %.3fpx -> %.4fAA" % (
+        self.logger.info("Typical line width in comp spectrum: %.3fpx -> %.4fAA" % (
             line_width_px, line_width_AA
         ))
+
 
         # now extract reference lines, after matching resolution to that of the
         # data we are about to calibrate
@@ -1011,7 +1014,7 @@ class BenchSpek(object):
             wl_min=(self.grating_solution.wl_blueedge - wl_padding),
             wl_max=(self.grating_solution.wl_rededge + wl_padding)
         )
-        if (self.debug):
+        if (self.debug or True):
             self.ref_inventory.to_csv("inventory_refspec.csv", index=False)
             numpy.savetxt("spec_spec", spec)
             numpy.savetxt("spec_peaks", peaks)
@@ -1193,9 +1196,10 @@ class BenchSpek(object):
 
         self.logger.debug("Done exploring all combinations of central wavelength & dispersion")
         results = numpy.array(results)
-        if (self.debug):
+        if (self.debug or True):
             numpy.savetxt("results.dump", results)
             results_df.to_csv("wl_solution.results", index=False)
+            numpy.savetxt("wl_polyfit", testfit)
 
         i_most_matches = numpy.argmax(results[:, 3])
         #print(i_most_matches)
@@ -1908,8 +1912,9 @@ class BenchSpek(object):
         else:
             master_ref_fiber = self.comp_spectra[self.ref_fiberid]
         # find wavelength solution for one "reference" fiber
+        self.logger.info("Master COMP has %s wavelength points" % (str(master_ref_fiber.shape)))
         self.wavelength_solution = self.find_wavelength_solution(
-            master_ref_fiber, make_plots=True, n_brightest=15,
+            master_ref_fiber, make_plots=True, #n_brightest=15,
         )
         # print("wavelength solution:", self.wavelength_solution)
 
@@ -1917,7 +1922,7 @@ class BenchSpek(object):
         self.poly_transforms = self.reidentify_lines(
             comp_spectra=self.comp_spectra,
             ref_fiberid=self.ref_fiberid,
-            make_plots=False, #True
+            make_plots=False,
         )
 
         self.logger.info("Generating output wavelength grid")
