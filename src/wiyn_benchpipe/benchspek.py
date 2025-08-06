@@ -970,7 +970,18 @@ class BenchSpek(object):
         # contsub, peaks = self.find_lines(spec, threshold=500, distance=5)
         # peaks_fine = self.fine_line_centroiding(spec=contsub, line_pos=peaks)
         self.comp_line_inventory, contsub = self.get_refined_lines_from_spectrum(
-            spec, return_contsub=True, min_threshold=5, distance=20, window_size=30)
+            spec, return_contsub=True) #, min_threshold=5, distance=20, window_size=30)
+
+
+        # Save the calibration spectrum, including the wavelength solution from the grating model
+        phdu = pyfits.PrimaryHDU(data=contsub)
+        phdu.header['CD1_1'] = dispersion
+        phdu.header['CRVAL1'] = lambda_central #* 1e10
+        phdu.header['CRPIX1'] = spec.shape[0]/2
+        phdu.header['CTYPE1'] = "WAVE-W2A"
+        _fn = "wavelength_comp_spectrum.fits"
+        phdu.writeto(_fn, overwrite=True)
+        self.logger.info("Wrote comp spectrum used for initial wavelength calibration to %s" % (_fn))
 
         if (n_brightest > 0):
             self.logger.info("Restricting comp line list to brightest %d lines" % (n_brightest))
