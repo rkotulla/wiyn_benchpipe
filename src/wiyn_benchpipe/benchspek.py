@@ -879,8 +879,8 @@ class BenchSpek(object):
         ax.set_xlim((6350, 6680))
         ax.set_ylim((0, 2e4))
 
-        ax.set_xlim((6500, 6600))
-        ax.set_xlim((6400, 6900))
+        # ax.set_xlim((6500, 6600))
+        ax.set_xlim((self.grating_solution.wl_blueedge, self.grating_solution.wl_rededge))
         # TODO: automatically adjust range to match actual covered range, plus some margins
 
         ax.set_ylim((0, 5e4))
