@@ -35,15 +35,14 @@ warnings.filterwarnings('ignore', r'divide by zero encountered in divide')
 warnings.filterwarnings('ignore', r'invalid value encountered in divide')
 warnings.simplefilter("ignore", RuntimeWarning)
 
-def gauss(x, center, sigma, amplitude):
-    return amplitude * numpy.exp(-(x - center) ** 2 / (2*sigma ** 2))
+def gauss(x, center, sigma, amplitude, background):
+    return amplitude * numpy.exp(-(x - center) ** 2 / (2*sigma ** 2)) + background
 def normalized_gaussian(x, mu, sig):
     return 1.0 / (numpy.sqrt(2.0 * numpy.pi) * sig) * numpy.exp(-numpy.power((x - mu) / sig, 2.0) / 2)
 
-def _fit_gauss(p, x, flux):
-    model = gauss(x, center=p[0], sigma=p[1], amplitude=p[2])
+def _fit_gauss(p, x, flux, noise=100):
+    model = gauss(x, center=p[0], sigma=p[1], amplitude=p[2], background=p[3])
     diff = model - flux
-    noise = 100
     return (diff / noise) ** 2
 
 
@@ -473,7 +472,7 @@ class BenchSpek(object):
 
             fit_results = scipy.optimize.leastsq(
                 func=_fit_gauss,
-                x0=[line, 3, peak_flux[i]],
+                x0=[line, 3, peak_flux[i], 0],
                 args=(w_x, w_spec)
             )
             # print(line, weighted, fit_results[0])
@@ -551,7 +550,7 @@ class BenchSpek(object):
             diffslopes_left = numpy.pad(numpy.diff(contsub), (0, 1), mode='constant', constant_values=0)
             diffslopes_right = numpy.pad(numpy.diff(contsub), (1, 0), mode='constant', constant_values=0)
 
-            peaks, peak_props = scipy.signal.find_peaks(contsub, height=threshold, distance=distance)
+            peaks, peak_props = scipy.signal.find_peaks(contsub, height=threshold, distance=distance, width=1.5)
             self.logger.debug("Found %d lines with peak > %.2f" % (len(peaks), threshold))
 
             # fig, ax = plt.subplots(figsize=(25, 5))
@@ -626,10 +625,13 @@ class BenchSpek(object):
                 # print(line, weighted)
                 peak_flux = contsub[line]
 
+                width_estimate = peak_props['widths'][i]
+
                 idx = len(line_inventory.index) + 1
                 line_inventory.loc[idx, 'position'] = line
-                line_inventory.loc[idx, 'peak'] = peak_flux #contsub[line]
+                line_inventory.loc[idx, 'peak'] = peak_flux  # contsub[line]
                 line_inventory.loc[idx, 'center_weight'] = weighted
+                line_inventory.loc[idx, 'peak_width'] = width_estimate  # contsub[line]
                 line_inventory.loc[idx, 'iteration'] = iteration
                 line_inventory.loc[idx, 'threshold'] = threshold
                 line_inventory.loc[idx, 'left'] = _left
@@ -650,14 +652,17 @@ class BenchSpek(object):
 
                 full_fit_results = scipy.optimize.leastsq(
                     func=_fit_gauss,
-                    x0=[weighted, 3, peak_flux], ## position,width,amplitude
-                    args=(w_x, w_spec)
+                    x0=[weighted, width_estimate, peak_flux, 0], ## position,width,amplitude
+                    args=(w_x, w_spec, 50),
+                    full_output=True, maxfev=50000,
                 )
+                n_evaluations = full_fit_results[2]['nfev']
+                fit_success = full_fit_results[4]
                 gaussfit = full_fit_results[0]
-                # print(line, gaussfit)
+                # print(line, gaussfit, n_evaluations, fit_success)
 
                 _fine_x = fine_x[_left * supersample:_right * supersample + 1]
-                modelgauss = gauss(w_x, gaussfit[0], gaussfit[1], gaussfit[2])
+                modelgauss = gauss(w_x, gaussfit[0], gaussfit[1], gaussfit[2], gaussfit[3])
                 next_cs[_left:_right + 1] -= modelgauss
                 gf[_left:_right + 1] += modelgauss
                 # centers.append(gaussfit[0])
@@ -665,6 +670,9 @@ class BenchSpek(object):
                 line_inventory.loc[idx, 'gauss_center'] = gaussfit[0]
                 line_inventory.loc[idx, 'gauss_width'] = numpy.fabs(gaussfit[1])
                 line_inventory.loc[idx, 'gauss_amp'] = gaussfit[2]
+                line_inventory.loc[idx, 'gauss_background'] = numpy.max([0., gaussfit[3]])
+                line_inventory.loc[idx, 'nfev'] = n_evaluations
+                line_inventory.loc[idx, 'success'] = fit_success
 
                 # ax.scatter(x[_left2:_right2+1], cs[_left2:_right2+1], marker=markers[i%4], alpha=0.5)
 
