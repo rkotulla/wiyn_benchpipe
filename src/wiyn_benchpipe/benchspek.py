@@ -1836,7 +1836,7 @@ class BenchSpek(object):
         cosmic_options = self.get_cosmic_ray_rejection_options(None)
 
         # find first file
-        flatlist = self.config.get('flat')
+        flatlist = self.config.get('flat', 'files')
         flatlist = [os.path.join(self.raw_dir, fn) for fn in flatlist]
         self.instrument = select_instrument(flatlist[0])
         # print("INSTRUMENT:", self.instrument.name)
@@ -1881,9 +1881,12 @@ class BenchSpek(object):
         self.logger.info("Extracting fiber spectra from master comp")
         # self.comp_spectra = self.extract_spectra_raw(imgdata=self.master_comp, weights=self.master_flat)
         self.comp_spectra,comp_clipped = self.raw_traces.extract_fiber_spectra(
-            imgdata=self.master_comp, weights=self.master_flat, extraction_mode='profile.clip.2')
+            imgdata=self.master_comp, weights=self.master_flat,
+            extraction_mode=self.config.get('comp', 'extraction'), #'profile.clip.2')
+        )
         # print(self.comp_spectra)
         pyfits.PrimaryHDU(data=self.comp_spectra).writeto("comp_spectra.fits", overwrite=True)
+        pyfits.PrimaryHDU(data=comp_clipped).writeto("comp_clipped.fits", overwrite=True)
         if (self.debug): numpy.savetxt("comp_spectra2.dat", self.comp_spectra)
 
 
