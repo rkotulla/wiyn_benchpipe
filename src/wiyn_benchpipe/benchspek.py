@@ -87,7 +87,7 @@ class BenchSpek(object):
         if (raw_dir is not None and os.path.isdir(raw_dir)):
             self.raw_dir = raw_dir
         else:
-            self.raw_dir = self.config.get("raw_directory", "raw/")
+            self.raw_dir = self.config.get("raw_directory", fallback="raw/")
         self.logger.info("Loading all input data files from %s" % (os.path.abspath(self.raw_dir)))
         self.make_plots = str(self.config.get('plots')).lower() == "yes"
         if (self.make_plots):
@@ -187,7 +187,7 @@ class BenchSpek(object):
     def make_master_bias(self, save=None, *opts, **kwopts):
         self.logger.info("Creating master bias")
         self.master_bias, _, bias_stack = self.basic_reduction(
-            filelist=self.config.get('bias'),
+            filelist=self.config.get('bias', "files"),
             bias=None, flat=None, op=numpy.median, return_stack=True, *opts, **kwopts)
         # print(self.master_bias.shape)
         # pyfits.PrimaryHDU(data=bias_stack).writeto("bias_stack.fits", overwrite=True)
@@ -246,7 +246,7 @@ class BenchSpek(object):
         self.logger.info("Creating master flat")
         # _list = []
         self.master_flat, _, flat_stack = self.basic_reduction(
-            filelist=self.config.get('flat'),
+            filelist=self.config.get('flat', 'files'),
             bias=self.master_bias, flat=None, op=numpy.median,
             return_stack=True, *opts, **kwopts)
         pyfits.PrimaryHDU(data=self.master_flat).writeto("masterflat_raw.fits", overwrite=True)
@@ -378,15 +378,18 @@ class BenchSpek(object):
 
     def make_master_comp(self, save=None, *opts, **kwopts):
         self.logger.info("Creating master comp")
-        self.master_comp, self.comp_header = self.basic_reduction(
-            filelist=self.config.get('comp'),
-            bias=self.master_bias, flat=self.master_flat,
-            op=numpy.median,
+        self.master_comp, self.comp_header, comp_stack = self.basic_reduction(
+            filelist=self.config.get('comp', 'files'),
+            bias=self.master_bias, #flat=self.master_flat,
+            op=numpy.median, return_stack=True,
             *opts, **kwopts
         )
         self.logger.debug("MasterComp dimensions: %s" % (str(self.master_comp.shape)))
+        pyfits.PrimaryHDU(data=comp_stack).writeto("comp_stack.fits", overwrite=True)
+        # print(self.master_comp)
         # print(self.master_comp.shape)
         # print(self.comp_header)
+
         if (save is not None):
             self.logger.info("Writing master comp to %s", save)
             pyfits.PrimaryHDU(data=self.master_comp, header=self.comp_header).writeto(save, overwrite=True)
