@@ -27,9 +27,9 @@ class Config(object):
                 'raw_directory': '.',
                 'cals_directory': '.',
                 'output_directory': '.',
-                'bias': [],
-                'flat': [],
-                'comp': [],
+                'bias': {'files': []},
+                'flat': {'files': []},
+                'comp': {'files': []},
                 'science': [],
                 'linelist': 'scidoc2212.fits',
                 'setup': {},
@@ -53,12 +53,14 @@ class Config(object):
                     'sigfrac': 0.5,
                     'sigclip': 1.5,
                     'niter': 3,
-                }
+                },
+                'extraction': 'optimal'
             }
         pass
 
     def update_config(self, conf, *nested):
         # print(type(nested), *nested)
+        self.logger.debug("Updating config: %s" % (str(".".join(nested))))
         nest = list(nested)
         subnest = self.config
         for n in nest:
