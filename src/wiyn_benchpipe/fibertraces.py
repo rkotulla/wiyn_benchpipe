@@ -1,5 +1,5 @@
 
-
+import os
 import numpy
 import logging
 import scipy.ndimage
@@ -335,10 +335,13 @@ class GenericFiberSpecs(object):
 
         self.logger.info("All done tracing fibers")
 
-    def extract_lineprofiles(self, fiber_ids=None, supersample=10, sample_step=None):
+    def extract_lineprofiles(self, fiber_ids=None, supersample=10, sample_step=None, save_as=None, reuse=False):
         # by default generate all profiles
         if (fiber_ids is None):
             fiber_ids = numpy.arange(self.n_fibers)
+
+        if (reuse and save_as is not None and os.path.isfile(save_as)):
+            return self.load_lineprofiles(filename=save_as)
 
         left = self.fullres_left.T
         center = self.fullres_centers.T
@@ -420,6 +423,8 @@ class GenericFiberSpecs(object):
             self.fiber_profiles[fiberid] = (ss_x, ss_flat)
 
         # end:: for fiberid in ....
+        if (save_as is not None):
+            self.save_lineprofiles(filename=save_as)
 
     def save_lineprofiles(self, lineprofiles=None, filename=None):
         self.logger.debug("Saving line profiles")
@@ -447,6 +452,24 @@ class GenericFiberSpecs(object):
         if (filename is not None):
             hdulist.writeto(filename, overwrite=True)
         return hdulist
+
+    def load_lineprofiles(self, filename):
+        self.logger.info("Restoring line profiles from %s" % (filename))
+
+        self.fiber_profiles = {}
+
+        hdulist = pyfits.open(filename)
+        for ext in hdulist[1:]:
+            name = ext.name
+            fiberid = int(name[6:]) - 1
+            prof = ext.data
+            hdr = ext.header
+            x = numpy.arange(prof.shape[0]) * hdr['CD1_1'] + hdr['CRVAL1']
+
+            self.fiber_profiles[fiberid] = (x, prof)
+
+        self.logger.debug("Read %d profiles from %s" % (fiberid, filename))
+
 
     def get_fiber_mask(self, imgdata, fiber_id):
         iy, ix = numpy.indices(imgdata.shape)
