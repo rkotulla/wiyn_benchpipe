@@ -1068,8 +1068,10 @@ class BenchSpek(object):
         self.find_reflines(
             sci_sigma=line_width_AA,
             wl_min=(self.grating_solution.wl_blueedge - wl_padding),
-            wl_max=(self.grating_solution.wl_rededge + wl_padding)
+            wl_max=(self.grating_solution.wl_rededge + wl_padding),
+            pixelscale=dispersion,
         )
+
         if (self.debug or True):
             self.ref_inventory.to_csv("inventory_refspec.csv", index=False)
             numpy.savetxt("spec_spec", spec)
