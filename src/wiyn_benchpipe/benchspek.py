@@ -2708,7 +2708,8 @@ class BenchSpek(object):
             self.logger.debug("raw sky mode: %s" % (sky_mode))
             if (sky_mode == 'default'):
                 self.logger.info("Using DEFAULT sky mode for target %s" % (target_name))
-                sky_fiber_ids = self.raw_traces.get_sky_fiber_ids()
+                _filelist = [os.path.join(self.raw_dir, fn) for fn in filelist]
+                sky_fiber_ids = self.raw_traces.get_sky_fiber_ids(_filelist)
             elif (sky_mode == 'custom'):
                 _fibers = self.config.get(target_name, "sky", "fibers")
                 sky_fiber_ids = numpy.array([int(f) - 1 for f in _fibers])
