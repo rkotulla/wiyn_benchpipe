@@ -1958,9 +1958,9 @@ class BenchSpek(object):
         self.raw_traces = select_instrument(self.comp_header, debug=self.debug)
         self.raw_traces.find_trace_fibers(self.master_flat)
         self.logger.info("Extracting line profiles for each fiber")
-        self.raw_traces.extract_lineprofiles()
-        self.logger.info("Saving line profiles")
-        self.raw_traces.save_lineprofiles(filename="lineprofiles.fits")
+        self.raw_traces.extract_lineprofiles(save_as="lineprofiles.fits", reuse=False)
+        #self.logger.info("Saving line profiles")
+        #self.raw_traces.save_lineprofiles(filename="lineprofiles.fits")
 
         # comp_spectra = raw_traces.extract_fiber_spectra(
         #     imgdata=self.master_comp,
