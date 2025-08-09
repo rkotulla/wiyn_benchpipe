@@ -2665,7 +2665,9 @@ class BenchSpek(object):
 
             self.logger.info("Extracting trace spectra [target: %s]" % (target_name))
             sci_spectra,_ = self.raw_traces.extract_fiber_spectra(
-                imgdata=target_combined, weights=self.master_flat, extraction_mode='profile.clip.2')
+                imgdata=target_combined, weights=self.master_flat,
+                extraction_mode=self.config.get(target_name, "extraction")
+            )#'profile.clip.2')
 
             # for human verification, extract and rectify all comp spectra
             self.logger.info("Appying wavelength calibrating to extracted spectra")
