@@ -59,7 +59,8 @@ class SpecAndLines(object):
             filtered_flux.append(_med)
 
         # ax.plot(filtered_wl, filtered_flux)
-        interp = scipy.interpolate.interp1d(x=filtered_wl, y=filtered_flux)
+        interp = scipy.interpolate.interp1d(x=filtered_wl, y=filtered_flux,
+                                            bounds_error=False, fill_value='extrapolate')
         fullres = interp(wl)
         # ax.plot(wl, fullres, lw=2, alpha=0.5)
 
