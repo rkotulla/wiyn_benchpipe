@@ -1191,7 +1191,7 @@ class BenchSpek(object):
         # print(ref2d.shape)
 
         results_df = pandas.DataFrame()
-        match_radius = numpy.fabs(20 * dispersion)
+        match_radius = numpy.fabs(2 * dispersion)
         self.logger.info("Matching radius for line matching: %.2f AA" % (match_radius))
         for i_iter, (cw, disp) in enumerate(itertools.product(scan_wl, scan_disp)):
 
@@ -1602,6 +1602,8 @@ class BenchSpek(object):
 
             # Now we have a matched catalog, so we can derive a new wavelength calibration
             # for this fiber
+            # TODO: Rework this, instead of re-fitting it's safer to multiply the two polynomials (
+            # TODO: (#1 pixel this fiber to pixel reference fiber, #2 reference pixel to wavelength)
             line_pos = fiber_inventory_combined['gauss_center'] - self.raw_traces.midpoint_y
             line_wl = fiber_inventory_combined['reference_wl']
             valid = numpy.isfinite(line_pos) & numpy.isfinite(line_wl)
@@ -1823,7 +1825,9 @@ class BenchSpek(object):
             self,
             spec, wavelength_solution,
             output_min_wl=None, output_max_wl=None,
-            output_dispersion=0.2):
+            output_dispersion=0.2,
+            custom_wl=False
+            ):
 
         # # prepare the final output wavelength grid
         # if (output_min_wl is None):
@@ -1844,6 +1848,17 @@ class BenchSpek(object):
         y0 = numpy.arange(spec.shape[0]) - self.raw_traces.midpoint_y
         wl = numpy.polyval(wavelength_solution, y0)
 
+        if (custom_wl):
+            # prepare the final output wavelength grid
+            if (output_min_wl is None):
+                output_min_wl = numpy.nanmin(wl)
+            if (output_max_wl is None):
+                output_max_wl = numpy.nanmax(wl)
+            out_spectral_axis = numpy.arange(output_min_wl, output_max_wl, output_dispersion, dtype=float) * u.AA
+        else:
+            # use the output wavelength grid, convert it to AA to make astropy happy
+            out_spectral_axis = self.output_wavelength_axis * u.AA
+
         # sort by wavelength to make sure wavelength is increasing
         wl_sort = numpy.argsort(wl)
         wl_AA = wl[wl_sort] * u.AA
@@ -1852,6 +1867,9 @@ class BenchSpek(object):
         # apply
         spec1d = Spectrum1D(spectral_axis=wl_AA, flux=flux)
         cal_spec = fluxcon(spec1d, out_spectral_axis)
+
+        if (custom_wl):
+            return cal_spec.flux.to(u.DN).value, out_spectral_axis.to(u.AA).value
 
         return cal_spec.flux.to(u.DN).value
 
