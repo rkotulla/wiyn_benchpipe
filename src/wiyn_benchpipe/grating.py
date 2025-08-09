@@ -25,7 +25,7 @@ class Grating(object):
 
     y0 = 0
 
-    def __init__(self, header, midline_x=None):
+    def __init__(self, header, midline_x=None, *args, **kwargs):
         self.logger = logging.getLogger(self.name)
 
 
