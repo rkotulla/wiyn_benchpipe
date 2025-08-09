@@ -986,6 +986,24 @@ class BenchSpek(object):
         # print(sel_wl)
         # ax.axvline(sel_wl) #, ymin=0.4, ymax=1.)
 
+    def save_calib_spectrum(self, spec, wl_polyfit, filename):
+
+        rect_spec, rect_wl = self.wavelength_calibrate_from_raw_trace(
+            spec, wl_polyfit,
+            output_dispersion=0.5*numpy.fabs(wl_polyfit[-2]),
+            custom_wl=True)
+
+        phdu = pyfits.PrimaryHDU(data=rect_spec)
+        phdu.header['CD1_1'] = rect_wl[1]-rect_wl[0]
+        phdu.header['CRVAL1'] = rect_wl[0] #* 1e10
+        phdu.header['CRPIX1'] = 1. #spec.shape[0]/2
+        phdu.header['CTYPE1'] = "WAVE-W2A"
+        phdu.writeto(filename, overwrite=True)
+
+        numpy.savetxt("dummy_rect_comp", numpy.array([rect_wl, rect_spec]).T)
+
+        self.logger.info("Wrote rectified calib spectrum to %s" % (filename))
+
     def find_wavelength_solution(self, spec, lambda_central=None, dispersion=None, min_lines=3, make_plots=True, n_brightest=0):
 
         self.logger.info("Finding wavelength solution")
@@ -1032,13 +1050,10 @@ class BenchSpek(object):
 
 
         # Save the calibration spectrum, including the wavelength solution from the grating model
-        phdu = pyfits.PrimaryHDU(data=contsub)
-        phdu.header['CD1_1'] = dispersion
-        phdu.header['CRVAL1'] = lambda_central #* 1e10
-        phdu.header['CRPIX1'] = spec.shape[0]/2
-        phdu.header['CTYPE1'] = "WAVE-W2A"
+        # raw_wl = numpy.polyval(self.grating_solution.wl_polyfit,
+        #           numpy.arange(contsub.shape[0])-self.grating_solution.y_center)
         _fn = "wavelength_comp_spectrum.fits"
-        phdu.writeto(_fn, overwrite=True)
+        self.save_calib_spectrum(spec=contsub, wl_polyfit=self.grating_solution.wl_polyfit, filename=_fn)
         self.logger.info("Wrote comp spectrum used for initial wavelength calibration to %s" % (_fn))
 
         if (n_brightest > 0):
