@@ -1556,6 +1556,11 @@ class BenchSpek(object):
 
             # cross-match line positions (in pixel space) from this fiber with the reference fiber
             # this allows us to assign wavelengths (from the calibrated reference fiber) to each matched line
+            if (len(fiber_inventory.index) < 1):
+                self.logger.warning("Not enough COMP lines found to reidentify fiber %d" % (fiber_id))
+                self.fiber_wavelength_solutions[fiber_id] = self.grating_solution.wl_polyfit
+                continue
+
             fiber_pos = fiber_inventory['gauss_center'].to_numpy()
             for iter in range(3):
                 rect_position = numpy.polyval(rect_poly, fiber_pos)
