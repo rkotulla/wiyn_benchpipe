@@ -1,3 +1,5 @@
+import sys
+
 import numpy
 import logging
 
@@ -102,12 +104,17 @@ class Grating(object):
         )
         return wavelength
 
-    def report(self):
-        self.logger.info("setup: grating: %.2f deg // camera: %.2f deg // order: %d" % (
+    def report(self, stdout=False):
+        if (stdout):
+            write = print
+        else:
+            write = self.logger.info
+        write("setup: grating: %.2f deg // camera: %.2f deg // order: %d" % (
             self.grating_angle, self.camera_angle, self.grating_order
         ))
-        self.logger.info("central wavelength: %f, dispersion %.3f A/px (range: %.1f -- %.1f)" % (
+        write("central wavelength: %f, dispersion %.3f A/px (range: %.1f -- %.1f)" % (
             self.central_wavelength, numpy.fabs(self.wl_polyfit[-2]),
             self.wl_blueedge, self.wl_rededge))
+
 
 
