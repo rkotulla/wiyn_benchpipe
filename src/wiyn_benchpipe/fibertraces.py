@@ -627,7 +627,7 @@ class GenericFiberSpecs(object):
         else:
             return numpy.mean(self.fullres_centers[:, fiber_id])
 
-    def get_sky_fiber_ids(self):
+    def get_sky_fiber_ids(self, *args, **kwargs):
         if (self.sky_fiber_ids is not None):
             return self.sky_fiber_ids
         raise ValueError("No sky fiber IDs defined")
@@ -640,6 +640,9 @@ class GenericFiberSpecs(object):
 
     def get_binning_x(self):
         return 1
+
+    def interpolate_missing_fibers(self):
+        return
 
     @classmethod
     def load_raw_file(cls, filename, logger=None):
