@@ -287,5 +287,108 @@ image""", file=reg)
         # logger.info("Results saved to %s" % (plot_fn))
 
 
+def centers_to_ds9_region_with_labels(centers, ds9_filename, reverse, color='green', good_trace=None, every=10):
 
+    y = numpy.arange(centers.shape[0])
+    print(centers.shape)
 
+    ds9 = open(ds9_filename, "w")
+    print("""\
+    # Region file format: DS9 version 4.1
+    global color=%s dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
+    physical""" % (color), file=ds9)
+
+    for fiberid in range(centers.shape[1]):
+        # print(fiberid)
+        fiberlabel = fiberid + 1 if not reverse else centers.shape[1]-fiberid
+
+        xy = numpy.array([centers[:,fiberid], y])[:, ::every].T
+        #xy = xy[:, ::every]
+        #print(xy.shape)
+
+        #print(xy.shape)
+
+        segments = ['%.2f,%d' % (x[0]+1,x[1]+1) for x in xy]
+        #print(segments)
+
+        if (good_trace is not None and not good_trace[fiberid]):
+            # extras = ["" for _real in good_trace if _real else " # background"]
+            start_end = numpy.array(["line(%s  ,  %s) # background " % (s,e) for (s,e) in zip(segments[:-1], segments[1:])])
+        else:
+            start_end = numpy.array(["line(%s  ,  %s)" % (s,e) for (s,e) in zip(segments[:-1], segments[1:])])
+        #print(start_end)
+
+        # line_points = xy.T.ravel()
+        # line_str = ",".join(["%.2f" % f for f in line_points[:30]])
+        # print(line_points[:30])
+        # print(line_str)
+        # print("line(%s)" % line_str, file=ds9)
+
+        n_labels = 10
+        label_every = xy.shape[0] / n_labels
+        i_label = ((numpy.arange(n_labels) + 0.5) * label_every).astype(int)
+        # print(i_label)
+
+        # index all lines
+        i_line = numpy.arange(xy.shape[0]-1)
+        #print("i-line:", i_line.shape)
+
+        # figure out where to show lines or labels
+        show_label = numpy.zeros_like(i_line, dtype=bool)
+        #print(i_label[:50])
+        #print(show_label[:50])
+        for i in i_label:
+            show_label[i_line == i] = True
+        #print(show_label[:50])
+        show_line = ~show_label #i_line != i_label
+
+        #print(show_label.shape, show_line.shape, start_end.shape)
+        #print(show_line[:10])
+        #print(start_end[show_line])
+        all_lines = "\n".join(start_end[show_line])
+        print(all_lines, file=ds9)
+
+        label_pos = 0.5*(xy[i_label,:] + xy[i_label+1,:])
+        #print(label_pos)
+        #for _i_label in i_label[show_label]:
+        for (_x,_y) in label_pos:
+            print("text(%.2f,%.2f) # text={%d}" % (_x+1,_y+1, fiberlabel), file=ds9)
+        #break
+        #line_points =
+
+    ds9.close()
+def traces_to_ds9(cmdline_args=None):
+
+    if (cmdline_args is None):
+        cmdline_args = sys.argv[1:]
+
+    mplog.setup_logging(debug_filename="wiyn_benchpipe_debug.log",
+                        log_filename="wiyn_benchpipe_reduce.log")
+    mpl_logger = logging.getLogger('matplotlib')
+    mpl_logger.setLevel(logging.WARNING)
+
+    logger = logging.getLogger("Traces-to-ds9")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", dest='input', type=str, default="fiber_tracers_fullres.fits")
+    parser.add_argument("--reverse", dest='reverse', action='store_true', default=False)
+    parser.add_argument("--type", dest='tracetype', default='center', type=str)
+    parser.add_argument("--output", dest='output', default='trace.reg', type=str)
+    parser.add_argument("--color", dest='color', default='green', type=str)
+    args = parser.parse_args(args=cmdline_args)
+
+    logger.info("Reading trace data from %s ..." % (args.input))
+    hdulist = pyfits.open(args.input)
+    # hdulist.info()
+
+    valid_trace_types = ["CENTER", "LEFT", "RIGHT", "PEAKS"]
+    if (args.tracetype.upper() not in valid_trace_types):
+        logger.error("Illegal trace type (%s), must be one of %s" % (args.tracetype, ", ".join(valid_trace_types)))
+        return -1
+
+    data = hdulist[args.tracetype.upper()].data
+    logger.info("Writing ds9 regions to %s" % (args.output))
+    centers_to_ds9_region_with_labels(
+        centers=data, ds9_filename=args.output, reverse=args.reverse,
+        color=args.color)
+
+    return 0
