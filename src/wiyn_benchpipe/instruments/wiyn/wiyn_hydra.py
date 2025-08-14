@@ -164,9 +164,12 @@ class WiynHydraFiberSpecs(WIYNBenchFiberSpecs):
 
 
 class WiynHydraRedFiberSpecs( WiynHydraFiberSpecs ):
-    n_fibers = 83
+    n_fibers = 89
     name = "Hydra Red Cable @ WIYN"
     ref_fiber_id = 41
+
+    trace_minx = 120
+    trace_maxx = 2520
 
 class WiynHydraBlueFiberSpecs( WiynHydraFiberSpecs ):
     n_fibers = 87
