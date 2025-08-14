@@ -35,7 +35,7 @@ def wiyn_benchpipe(cmdline_args=None):
     parser.add_argument('--config', dest='config',
                         type=str, default='setup.json')
     parser.add_argument('--rawdir', dest='raw_dir',
-                        type=str, default='raw/')
+                        type=str, default=None)
     parser.add_argument('--debug', dest='debug', action='store_true', default=False)
     args = parser.parse_args(args=cmdline_args)
 
