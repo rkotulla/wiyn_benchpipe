@@ -23,8 +23,11 @@ def select_instrument(file_or_hdu, *args, **kwargs):
     instrument = hdr['INSTRUME']
     if (instrument == 'Bench Spectrograph'):
         fibername = hdr['FIBRNAME']
+        fibercable = hdr['FIBCABLE']
         if (fibername == 'SparsePak'):
             return SparsepakFiberSpecs(header=hdr, *args, **kwargs)
+        elif (fibercable == "RED"):
+            return WiynHydraRedFiberSpecs(header=hdr, *args, **kwargs)
         elif (fibername == "Blue"):
             return WiynHydraBlueFiberSpecs(header=hdr, *args, **kwargs)
         else:
