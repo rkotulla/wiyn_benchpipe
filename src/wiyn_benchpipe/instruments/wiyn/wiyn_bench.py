@@ -137,7 +137,7 @@ def wiyn_grating_from_header(header, **kwargs):
     if (kwargs.get('grating_name', None) is not None):
         grating_name = kwargs['grating_name']
 
-    if (grating_name == '316@63.4'):
+    if (grating_name.startswith("316@")): # == '316@63.4'):
         return Grating_Echelle316(header, **kwargs)
     elif (grating_name == '600@10.1'):
         return Grating_WIYN_600_101(header, **kwargs)
