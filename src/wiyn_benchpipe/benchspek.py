@@ -1492,8 +1492,31 @@ class BenchSpek(object):
         fig.savefig(plot_fn)
         self.logger.debug("Plot saved to %s" % (plot_fn))
 
+    def save_comps(self, comp_spectra, filename):
+        hdulist = [pyfits.PrimaryHDU()]
+        for fiberid in range(self.instrument.n_fibers):
+            spec_hdu = pyfits.ImageHDU(data=comp_spectra[fiberid], name="SPEC_%d" % (fiberid+1))
+            table = astropy.table.Table.from_pandas(self.fiber_inventories[fiberid])
+            tbhdu = pyfits.BinTableHDU(data=table, name="LINES_%d" % (fiberid+1))
+            hdulist.extend([spec_hdu, tbhdu])
+        hdulist = pyfits.HDUList(hdulist)
+        hdulist.writeto(filename, overwrite=True)
+        self.logger.info("Wrote COMPs (spectra and lines) to %s" % (filename))
+        pass
 
-    def reidentify_lines(self, comp_spectra, ref_fiberid=41, make_plots=False):
+    def restore_comps(self, filename):
+        self.logger.info("Restoring COMPS (spectra and lines) from %s" % (filename))
+        hdulist = pyfits.open(filename)
+        for fiberid in range(self.instrument.n_fibers):
+            try:
+                ext = hdulist['LINES_%d' % (fiberid+1)]
+                self.fiber_inventories[fiberid] = astropy.table.Table(ext.data).to_pandas()
+            except:
+                self.logger.warning("Error restoring lines for fiber %d" % (fiberid+1))
+                return False
+        return True
+
+    def reidentify_lines(self, comp_spectra, ref_fiberid=41, make_plots=False, reuse=False, absolute=False):
         ##################################
         #
         #   RE-IDENTIFY
