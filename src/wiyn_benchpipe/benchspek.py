@@ -1264,6 +1264,187 @@ class BenchSpek(object):
         #     ax.set_ylim(0, 25000)
         #     fig.savefig("reference_spectrum_wlcal.png", dpi=300)
 
+        #
+        # New, faster & better algorithm to find WL solution
+        dispersion = self.grating_solution.wl_polyfit[-2]
+        bins = numpy.arange(-200, 201) * numpy.fabs(dispersion) * 1.5
+        bin_centers = 0.5 * (bins[:-1] + bins[1:])
+
+        disp_range = 0.1  # allow for a ## variance in dispersion as determined by the grating solution
+        dispersions = numpy.linspace(1. - disp_range, 1.0 + disp_range, 351) * dispersion
+
+        # allow for some mixing across bins to avoid fragmenting peaks into adjacent bins
+        conv = numpy.array([0.5, 1, 3, 1, 0.5], dtype=float)
+        conv /= numpy.sum(conv)
+
+        # ref_wl = self.ref_inventory['gauss_wl']
+        # initialize solutions as placeholders before starting work
+        max_line_matches = numpy.zeros_like(dispersions)
+        best_offsets = numpy.zeros_like(dispersions)
+        all_hists = []
+        for i, disp in enumerate(dispersions):
+            # generate a new wavelength fit, replacing the dispersion with our current guess
+            poly = self.grating_solution.wl_polyfit.copy()
+            poly[-2] = disp
+            # convert COMP line positions from pixel to wavelength
+            comp_wl = numpy.polyval(poly, self.comp_line_inventory['gauss_center'] - self.grating_solution.y_center)
+
+            offset, n_matches, (hist, hist_added) = find_best_offset(comp_wl, reflines, bins=bins, conv=conv,
+                                                                     return_hist=True)
+            max_line_matches[i] = n_matches  # hist_added[peak_pos]
+            best_offsets[i] = offset  # bin_centers[peak_pos]
+            all_hists.append(hist)
+        numpy.savetxt("new_algorithm.dmp", numpy.array([dispersions, max_line_matches, best_offsets]).T)
+        numpy.savetxt("new_algorithm.hists", numpy.array(all_hists).T)
+        self.logger.info("Created NEW ALGORITHM DUMP")
+
+        max_matches = numpy.max(max_line_matches)
+        is_top_match = (max_line_matches == max_matches)
+        self.logger.info(
+            "Found %d solutions with a max of %.1f (weighted) matches" % (numpy.sum(is_top_match), max_matches))
+
+        best_dispersion = dispersions[is_top_match][0]
+        best_offset = best_offsets[is_top_match][0]
+        # print(dispersions[is_top_match])
+        # print(best_offsets[is_top_match])
+        model_dispersion = numpy.fabs(self.grating_solution.wl_polyfit[-2])
+        self.logger.info(
+            "compared to grating, offset = %.1f AA, best dispersion is %.4f A/px vs %.4f A/px expected (D=%.1f%%)" % (
+                best_offset, numpy.fabs(best_dispersion), model_dispersion,
+                numpy.fabs(100 * (model_dispersion - numpy.fabs(best_dispersion)) / model_dispersion)
+            ))
+
+        #
+        # Now, use the newly found best solution to match the two catalogs, to yield a matched set
+        # of pixel and wavelength points; then iterate to reduce variance and maximize number of lines matched
+        #
+        poly = self.grating_solution.wl_polyfit.copy()
+        poly[-2] = best_dispersion  # dispersions[is_top_match][0]
+        poly[-1] -= best_offset  # best_offset[is_top_match][0]
+        self.comp_line_inventory['gauss_center_y0'] = self.comp_line_inventory[
+                                                          'gauss_center'] - self.grating_solution.y_center
+        comps_renamed = pandas.DataFrame(self.comp_line_inventory)
+        comps_renamed.columns = ["comp_%s" % s for s in self.comp_line_inventory.columns]
+
+        ref_wl = self.ref_inventory['gauss_wl'].to_numpy()
+        match_radius = 5 * numpy.fabs(poly[-2])
+        self.logger.info("COMPS: %d" % (len(comps_renamed.index)))
+        self.logger.info("REFS:  %d // reflines: %d" % (len(self.ref_inventory.index), ref_wl.shape[0]))
+        comps_renamed['comp_gauss_wl'] = numpy.polyval(poly, comps_renamed['comp_gauss_center_y0'])
+
+        self.ref_inventory.to_csv("wlcalib_ref.csv", index=False)
+        comps_renamed.to_csv("wlcalib_comp.csv", index=False)
+        self.logger.info("Matching radius: %f" % (match_radius))
+        match_counter = [0]
+        for rematch_iter in range(15):
+
+            self.logger.info("%d :: %s" % (rematch_iter, str(poly)))
+            old_poly = poly.copy()
+            comp_full_wl = numpy.polyval(poly, comps_renamed['comp_gauss_center_y0'])
+            ref_wl = self.ref_inventory['gauss_wl'].to_numpy()
+
+            # merge comp & ref catalog
+            merged_df = match_catalogs(
+                ref_wl, comp_full_wl, self.ref_inventory, comps_renamed,
+                max_delta_wl=match_radius, match_counter=match_counter)
+            merged_df.loc[:, 'comp_gauss_wl'] = comp_full_wl
+            merged_df.loc[:, 'dummy1'] = numpy.ones_like(comp_full_wl)
+            merged_df.to_csv("merged_iteration_%d.csv" % (rematch_iter + 1), index=False)
+
+            # fig, axs = plt.subplots(ncols=2, figsize=(15, 4))
+            # sfig, sax = plt.subplots(figsize=(12, 4))
+
+            refit_iter = 0
+            for refit_iter in range(3):
+                # if (True):
+
+                # merged_df['comp_gauss_wl'] = numpy.polyval(poly, merged_df['
+                # find lines that don't match well
+                delta_wl = merged_df['comp_gauss_wl'] - merged_df['ref_gauss_wl']
+                small_delta_wl = numpy.isfinite(delta_wl)
+                print("BEFORE CLEAN:", numpy.sum(small_delta_wl))  # , "\n", delta_wl)
+                for _iter in range(3):
+                    _stats = numpy.nanpercentile(delta_wl[small_delta_wl], [16, 50, 84])
+                    _med = _stats[1]
+                    _sigma = 0.5 * (_stats[2] - _stats[0])
+                    new_small_delta_wl = small_delta_wl & (delta_wl < (_med + 3 * _sigma)) & (
+                            delta_wl > (_med - 3 * _sigma))
+                    if ((new_small_delta_wl == small_delta_wl).all()):
+                        print("No new outliers detected, skipping remaining iterations")
+                        break
+                    small_delta_wl = new_small_delta_wl
+
+                    # print("rematch: %d / refit: %d / clean: %d ==> _med=%.2f  std(d_wl)=%.3f" % (
+                    #     rematch_iter + 1, refit_iter + 1, _iter + 1, _med, _sigma))
+                # print("\nAFTER CLEAN:", numpy.sum(small_delta_wl), "\n", delta_wl[small_delta_wl])
+                print("rematch: %d / refit: %d / clean: %d ==> _med=%.2f  std(d_wl)=%.3f" % (
+                    rematch_iter + 1, refit_iter + 1, _iter + 1, _med, _sigma))
+
+                # select a good set of lines that match pretty well, and fit a polynomial
+                poly = numpy.polyfit(merged_df['comp_gauss_center_y0'][small_delta_wl],
+                                     merged_df['ref_gauss_wl'][small_delta_wl], deg=self.wl_polyfit_order)
+
+                wl_fit = numpy.polyval(poly, merged_df['comp_gauss_center_y0'])
+                # ref_wl = comps_renamed['ref_gauss_wl']
+
+                ref_wl = merged_df['ref_gauss_wl']
+                error_wl = merged_df['ref_gauss_wl'] - wl_fit
+                # axs[0].scatter(ref_wl[small_delta_wl], error_wl[small_delta_wl],
+                #                label="iteration %d" % (refit_iter + 1), c=colors[refit_iter], s=1)
+                # axs[0].scatter(ref_wl[~small_delta_wl], numpy.zeros_like(ref_wl)[~small_delta_wl], alpha=0.5, c='black')
+
+                # poly_lin = poly[-2:]
+                # comp_x = merged_df['comp_gauss_center_y0']
+                # model_wl = numpy.polyval(poly, y0)
+                # nonlin_poly = poly.copy()
+                # nonlin_poly[-2:] = 0
+                # wl_nonlinear = numpy.polyval(nonlin_poly, merged_df['comp_gauss_center_y0'])
+                # model_nonlinear = numpy.polyval(nonlin_poly, y0)
+
+                # # axs[1].scatter(comp_x[small_delta_wl], ref_wl[small_delta_wl], c=colors[refit_iter], s=1)
+                # # axs[1].scatter(comp_x[~small_delta_wl], ref_wl[~small_delta_wl], alpha=0.5, c='black', s=1)
+                # # axs[1].plot(y0, model_wl, alpha=0.2)
+                # axs[1].scatter(comp_x[small_delta_wl], wl_nonlinear[small_delta_wl])
+                # axs[1].plot(y0, model_nonlinear, alpha=0.2)
+
+                #        ax.scatter(merged_df['ref_gauss_wl'], merged_df['ref_gauss_wl']-wl_fit, label="iteration %d" % (refit_iter+1))
+
+            # show spectra
+            # sax.plot(_ref[:,0], _ref[:,2]/refscale, lw=0.4, c='blue', label="REF", alpha=0.5)
+            # _wl = numpy.polyval(poly, _y0)
+            # sax.plot(_wl, _comp / compscale, lw=0.5, c='red', label="COMP", alpha=0.5)
+            # sax.set_ylim((0, 1))
+            # sax.scatter(merged_df['comp_gauss_wl'], merged_df['dummy1'] * 0.3, marker="|", c='red')
+            # sax.scatter(merged_df['ref_gauss_wl'], merged_df['dummy1'] * 0.4, marker="|", c='blue')
+
+            # sax.scatter(refs_full['gauss_wl'], numpy.ones(len(refs_full.index)) * 0.43, marker="|", c='green')
+            # full_comp = numpy.polyval(poly, comps_full['gauss_center'] - grating.y_center)
+            # sax.scatter(full_comp, numpy.ones(full_comp.shape[0]) * 0.27, marker="|", c='green')
+
+            # sax.set_xlim(5050,5150)
+            # sax.legend()
+            # sfig.tight_layout()
+            # sfig.savefig("rematch_refit_%02d.png" % (rematch_iter), dpi=300)
+
+            # print(poly.shape, old_poly.shape)
+            if (poly.shape == old_poly.shape):
+                if ((poly == old_poly).all()):
+                    print("No further changes, aborting fitting")
+                    break
+            # break
+
+        self.logger.info("final WL solution: %s" % (" ".join(["%.4g" % f for f in poly])))
+        merged_df['comp_gauss_wl'] = numpy.polyval(poly, merged_df['comp_gauss_center_y0'])
+        merged_df['good_line_match'] = small_delta_wl
+        merged_df.info()
+
+        # Store the final matched line catalog for the upcoming re-identify
+        self.matched_line_inventory = merged_df
+        numpy.savetxt("wlcalib_poly", poly)
+
+        return poly
+
+
         ref2d = numpy.array([reflines, reflines]).T
         # print(ref2d.shape)
         ref_tree = scipy.spatial.KDTree(
