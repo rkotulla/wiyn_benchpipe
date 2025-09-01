@@ -2954,7 +2954,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', dest='config',
                         type=str, default='setup.json')
     parser.add_argument('--rawdir', dest='raw_dir',
-                        type=str, default='raw/')
+                        type=str, default=None)
     args = parser.parse_args()
 
     benchspec = BenchSpek(args.config, args.raw_dir)
