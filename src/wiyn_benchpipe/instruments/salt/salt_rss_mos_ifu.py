@@ -77,30 +77,33 @@ class RSS_SALT_RSS ( Grating ):
         self.y = numpy.arange(self.ccd_n_pixels_binned)
         self.y0 = self.y - (self.ccd_n_pixels_binned / 2) # relativ to center of chip
 
-        self.compute()
-
-    def compute(self):
-        self.logger.info("Computing wavelength solution using grating equation")
         self.alpha = numpy.deg2rad(self.grating_angle)
         self.beta = numpy.deg2rad(self.camera_collimator_angle - self.grating_angle)
 
-        # calculate central wavelength
-        self.central_wavelength = self.line_spacing / self.grating_order * (numpy.sin(self.alpha) + numpy.sin(self.beta))
-        self.logger.info("central wavelength = %f" % (self.central_wavelength))
+        self.compute()
 
-        # full wavelength solution (WL for each y-value)
-        angle_offset = numpy.arctan(self.y0 * self.ccd_pixelsize_binned / self.grating_camera_distance) * self.camera_magnification
-        self.wavelength_solution = self.line_spacing / self.grating_order * (
-            numpy.sin(self.alpha) + numpy.sin(self.beta - angle_offset)
-        )
-
-        # we can also provide a quick polynomial fit
-        self.wl_polyfit = numpy.polyfit(self.y0, self.wavelength_solution, deg=2)
-
-        self.wl_blueedge = numpy.min(self.wavelength_solution)
-        self.wl_rededge = numpy.max(self.wavelength_solution)
-
-        return
+    # def compute(self):
+    #     self.logger.info("Computing wavelength solution using grating equation")
+    #     self.alpha = numpy.deg2rad(self.grating_angle)
+    #     self.beta = numpy.deg2rad(self.camera_collimator_angle - self.grating_angle)
+    #
+    #     # calculate central wavelength
+    #     self.central_wavelength = self.line_spacing / self.grating_order * (numpy.sin(self.alpha) + numpy.sin(self.beta))
+    #     self.logger.info("central wavelength = %f" % (self.central_wavelength))
+    #
+    #     # full wavelength solution (WL for each y-value)
+    #     angle_offset = numpy.arctan(self.y0 * self.ccd_pixelsize_binned / self.grating_camera_distance) * self.camera_magnification
+    #     self.wavelength_solution = self.line_spacing / self.grating_order * (
+    #         numpy.sin(self.alpha) + numpy.sin(self.beta - angle_offset)
+    #     )
+    #
+    #     # we can also provide a quick polynomial fit
+    #     self.wl_polyfit = numpy.polyfit(self.y0, self.wavelength_solution, deg=2)
+    #
+    #     self.wl_blueedge = numpy.min(self.wavelength_solution)
+    #     self.wl_rededge = numpy.max(self.wavelength_solution)
+    #
+    #     return
 
 class RSS_SALT_RSS_PG0900 (RSS_SALT_RSS):
     name = "SALT-RSSVIS-PG0900"
