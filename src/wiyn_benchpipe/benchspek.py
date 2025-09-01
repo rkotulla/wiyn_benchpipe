@@ -1142,8 +1142,7 @@ class BenchSpek(object):
         # contsub, peaks = self.find_lines(spec, threshold=500, distance=5)
         # peaks_fine = self.fine_line_centroiding(spec=contsub, line_pos=peaks)
         self.comp_line_inventory, contsub = self.get_refined_lines_from_spectrum(
-            spec, return_contsub=True) #, min_threshold=5, distance=20, window_size=30)
-
+            spec, return_contsub=True, distance=3)  # , min_threshold=5, distance=20, window_size=30)
 
         # Save the calibration spectrum, including the wavelength solution from the grating model
         # raw_wl = numpy.polyval(self.grating_solution.wl_polyfit,
@@ -1206,6 +1205,7 @@ class BenchSpek(object):
         in_window = (self.ref_inventory['gauss_wl'] >= self.grating_solution.wl_blueedge) & \
                     (self.ref_inventory['gauss_wl'] <= self.grating_solution.wl_rededge)
         selected_list = self.ref_inventory[in_window].reset_index(drop=True)
+        self.ref_inventory_selected = selected_list
         # selected_list.info()
         reflines = selected_list['gauss_wl'].to_numpy()
         self.logger.info("Found %s calibrated reference lines" % (str(reflines.shape)))
@@ -1601,6 +1601,7 @@ class BenchSpek(object):
         if (self.debug): self.matched_line_inventory.to_csv("matched_line_inventory.csv", index=False)
 
         comp_peaks_px = peaks[matched] - self.comp_spectrum_center_y
+        # comp_peaks_px = peaks - self.comp_spectrum_center_y
         use_in_final_fit = numpy.isfinite(ref_wl_refined)
         # print("USE IN FIT", use_in_final_fit.shape)
         plot_fn = "wavelength_solution_details_initial.png"
@@ -2386,17 +2387,8 @@ class BenchSpek(object):
             custom_wl=False
     ):
 
-        # # prepare the final output wavelength grid
-        # if (output_min_wl is None):
-        #     output_min_wl = numpy.nanmin(wl)
-        # if (output_max_wl is None):
-        #     output_max_wl = numpy.nanmax(wl)
-        #
         # n_wl_points = int(((output_max_wl - output_min_wl) / output_dispersion)) + 1
         # out_wl_points = numpy.arange(n_wl_points, dtype=float) * output_dispersion + output_min_wl
-
-        # use the output wavelength grid, convert it to AA to make astropy happy
-        out_spectral_axis = self.output_wavelength_axis * u.AA
 
         # setup spectrum interpolator
         fluxcon = FluxConservingResampler(extrapolation_treatment='nan_fill')
@@ -2513,7 +2505,9 @@ class BenchSpek(object):
 
         self.logger.info("Extracting fiber spectra from master flat")
         self.raw_traces = select_instrument(self.comp_header, debug=self.debug)
+        self.raw_traces.debug = False
         self.raw_traces.find_trace_fibers(self.master_flat)
+        # self.raw_traces.interpolate_missing_fibers()
         self.logger.info("Extracting line profiles for each fiber")
         self.raw_traces.extract_lineprofiles(save_as="lineprofiles.fits", reuse=False)
         #self.logger.info("Saving line profiles")
@@ -3351,7 +3345,7 @@ class BenchSpek(object):
             # )
 
             # extract all spectra for all fibers
-            target_fiberspecs = self.rect_traces.extract_fiber_spectra(
+            target_fiberspecs, _ = self.rect_traces.extract_fiber_spectra(
                 imgdata=target_rect,
                 weights=self.flat_rectified_2d,
             )
@@ -3398,4 +3392,3 @@ if __name__ == '__main__':
 
     benchspec.calibrate(save=True)
     benchspec.reduce()
-
