@@ -1172,10 +1172,11 @@ class BenchSpek(object):
             line_width_px, line_width_AA
         ))
 
-
+        #
         # now extract reference lines, after matching resolution to that of the
         # data we are about to calibrate
-        wl_padding = 0.05*(self.grating_solution.wl_rededge - self.grating_solution.wl_blueedge)
+        #
+        wl_padding = 0.05 * (self.grating_solution.wl_rededge - self.grating_solution.wl_blueedge)
         self.find_reflines(
             sci_sigma=line_width_AA,
             wl_min=(self.grating_solution.wl_blueedge - wl_padding),
@@ -1197,9 +1198,11 @@ class BenchSpek(object):
         peaks_wl = numpy.polyval(self.grating_solution.wl_polyfit, peaks0)
         self.comp_spectrum_full_y = full_y
         self.comp_spectrum_full_y0 = full_y0
-        self.comp_spectrum_center_y = spec.shape[0]/2
+        self.comp_spectrum_center_y = spec.shape[0] / 2
 
+        #
         # generate a tree for the reference lines
+        #
         in_window = (self.ref_inventory['gauss_wl'] >= self.grating_solution.wl_blueedge) & \
                     (self.ref_inventory['gauss_wl'] <= self.grating_solution.wl_rededge)
         selected_list = self.ref_inventory[in_window].reset_index(drop=True)
@@ -1245,8 +1248,7 @@ class BenchSpek(object):
             ax.set_ylabel("comp spectrum amplitude")
             fig.savefig("reference_spectrum_wlcal.png", dpi=300)
             self.logger.debug("Saved plot to reference_spectrum_wlcal.png")
-
-
+        # end make plots
 
         # if (True):
         #     fig, ax = plt.subplots(figsize=(13, 5))
@@ -1268,8 +1270,8 @@ class BenchSpek(object):
             data=ref2d
         )
 
-        #lambda_central = 6573.56
-        #dispersion = -0.31386
+        # lambda_central = 6573.56
+        # dispersion = -0.31386
 
         # scan the range
         var_wl, n_wl = 0.01,100 #0.002, 100
@@ -1946,7 +1948,7 @@ class BenchSpek(object):
             output_min_wl=None, output_max_wl=None,
             output_dispersion=0.2,
             custom_wl=False
-            ):
+    ):
 
         # # prepare the final output wavelength grid
         # if (output_min_wl is None):
