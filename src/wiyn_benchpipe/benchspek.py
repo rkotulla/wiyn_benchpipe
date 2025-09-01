@@ -49,6 +49,33 @@ def _fit_gauss(p, x, flux, noise=100):
     return (diff / noise) ** 2
 
 
+def pick_locally_bright_lines(cat, n_blocks, n_per_block, xmin, xmax, col_pos='gauss_center', col_flux='gauss_amp'):
+    blocksize = (xmax - xmin) / n_blocks
+    block_pos = (numpy.arange(n_blocks) + 0.5) * blocksize
+
+    selections = []
+    for b in range(n_blocks):
+        b1 = int(numpy.max([xmin, numpy.floor(b * blocksize + xmin)]))
+        b2 = int(numpy.min([xmax, numpy.ceil((b + 1) * blocksize + xmin)]))
+        # block_max[b] = numpy.nanmax(_comp[b1:b2])
+
+        in_block = (cat[col_pos] > b1) & (cat[col_pos] <= b2)
+        if (numpy.sum(in_block) <= 0):
+            continue
+
+        block_cat = cat[in_block]
+
+        fluxes = block_cat[col_flux].to_numpy()
+        flux_sort = numpy.argsort(fluxes)[::-1][:n_per_block]
+
+        selected = block_cat.iloc[flux_sort]
+        print(b, b1, b2, len(selected.index))
+        selections.append(selected)
+
+    final_cat = pandas.concat(selections, axis='index')
+    return final_cat
+
+
 
 class BenchSpek(object):
 
