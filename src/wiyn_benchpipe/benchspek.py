@@ -1813,6 +1813,261 @@ class BenchSpek(object):
         wls = self.grating_solution.wavelength_from_xy(x=fiber_positions,y=None)
         # from fiber-position, derive offsets in central wavelength
         # print(wls)
+
+        fiber_y0s = self.grating_solution.y_from_wavelength(
+            wavelength = self.grating_solution.wl_polyfit[-1],
+            return_y0=True,
+            x=fiber_positions
+            )
+
+        fiber_offset_to_reference = fiber_y0s[ref_fiberid] - fiber_y0s
+        numpy.savetxt("fiber_offsets", fiber_offset_to_reference)
+
+        self.fiber_inventories = {}
+
+        success = False
+        store_file = "comps_inventories.fits"
+        if (os.path.isfile(store_file)):
+            success = self.restore_comps(store_file)
+        if (success):
+            self.logger.info("Successfully restored lines from file %s" % (store_file))
+        else:
+            self.logger.info("Identifying lines in all COMP spectra")
+            for fiber_id in range(self.instrument.n_fibers):
+                fiber_inventory = self.get_refined_lines_from_spectrum(
+                    comp_spectra[fiber_id])
+                self.fiber_inventories[fiber_id] = fiber_inventory
+                self.logger.info("Found %d lines in COMP fiber %d" % (
+                    len(fiber_inventory.index), fiber_id))
+            self.save_comps(comp_spectra, store_file)
+
+        self.logger.info("Re-identifying lines in all COMP spectra")
+        self.fiber_wavelength_solutions = {}
+        self.fiber_wavelength_solutions_inverse = {}
+
+        # prepare search
+        rescale = numpy.linspace(0.980, 1.020, 21)
+        conv = numpy.array([0.5,1,3,1,0.5])
+        conv /= numpy.max(conv)
+        bins = numpy.linspace(-150, 150, 301)
+        bin_centers = 0.5*(bins[1:] + bins[:-1])
+
+        # pick reference lines
+        ref_inventory = self.fiber_inventories[ref_fiberid]
+        ref_lines_y0 = ref_inventory['gauss_center'].to_numpy() - self.grating_solution.y_center
+
+        reident_poly_deg = 2
+        all_fiber_scalings = numpy.zeros((self.instrument.n_fibers))
+        all_fiber_offsets = numpy.zeros((self.instrument.n_fibers))
+        all_reident_polys = numpy.zeros((self.instrument.n_fibers,reident_poly_deg+1))
+        for fiber_id in range(self.instrument.n_fibers):
+            this_fiber_inventory = self.fiber_inventories[fiber_id]
+            # if (fiber_id == 0): this_fiber_inventory.to_csv("test_before.csv")
+            # print(self.grating_solution.y_center)
+            this_fiber_inventory['gauss_center_y0'] = this_fiber_inventory['gauss_center'].to_numpy() - self.grating_solution.y_center
+            # if (fiber_id == 0): this_fiber_inventory.to_csv("test_after.csv")
+
+            n_matches = numpy.zeros_like(rescale)
+            offsets = numpy.zeros_like(rescale)
+            this_fiber_bins = bins + fiber_offset_to_reference[fiber_id]
+
+            # ref1 = inv1['gauss_center'].to_numpy() - grating.y_center
+            # ref2 = (inv2['gauss_center'].to_numpy() - grating.y_center) * scale
+            fiber_lines_y0 = this_fiber_inventory['gauss_center_y0'].to_numpy() #- self.grating_solution.y_center
+
+            # count how many lines we can match for each of the scaling options
+            for i, scale in enumerate(rescale):
+                fiber_lines_scaled = fiber_lines_y0 * scale
+                offsets[i], n_matches[i], hists = find_best_offset(
+                    ref_lines_y0, fiber_lines_scaled, bins=this_fiber_bins,
+                    conv=conv, return_hist=True)
+
+            # find shift & scaling that matches the most lines
+            i_most_matches = numpy.argmax(n_matches)
+            best_offset = offsets[i_most_matches]
+            best_rescale = rescale[i_most_matches]
+            self.logger.info("FIBER %d :: rescale: %f // offset: %.2f [%.2f] px :: %d matches (%d / %d)" % (
+                fiber_id, best_rescale, best_offset, fiber_offset_to_reference[fiber_id],
+                n_matches[i_most_matches], fiber_lines_y0.shape[0], ref_lines_y0.shape[0]))
+            all_fiber_scalings[fiber_id] = best_rescale
+            all_fiber_offsets[fiber_id] = best_offset
+
+            #
+            # Now match the catalogs to get an even more refined fit
+            #
+            best_fiber_lines = fiber_lines_y0 * best_rescale + best_offset
+            merged = match_catalogs(
+                ref_wl=ref_lines_y0, comp_wl=best_fiber_lines,
+                ref_cat=ref_inventory, comp_cat=this_fiber_inventory,
+                max_delta_wl=2, # match within 2 pixels
+            )
+
+            # only select lines that have been matched successfully
+            merged.to_csv("reident_merged_raw_%d.csv" % (fiber_id+1), index=False)
+            is_matched = numpy.isfinite(merged['wl_distance'])
+            for _iter in range(3):
+                # now we have a set of pixel positions in both the reference fiber
+                # and the current fiber -- let's fit the transformation from one to the other
+                reident_poly = numpy.polyfit(
+                    merged['ref_gauss_center'][is_matched] - self.grating_solution.y_center,
+                    merged['gauss_center'][is_matched] - self.grating_solution.y_center,
+                    deg=reident_poly_deg
+                )
+
+                fit_x = numpy.polyval(reident_poly, merged['ref_gauss_center'] - self.grating_solution.y_center)
+                fit_error = merged['gauss_center'] - fit_x
+                _stats = numpy.nanpercentile(fit_error[is_matched], [16,50,84])
+                _med = _stats[1]
+                _sigma = 0.5*(_stats[2]-_stats[0])
+                new_matched = is_matched & (fit_error > (_med - 3*_sigma)) & (fit_error < (_med+3*_sigma))
+                if ((new_matched == is_matched).all() or numpy.sum(new_matched)<=0 ):
+                    break
+                is_matched = new_matched
+
+            print(fiber_id, "before:", len(merged.index), "   after cleaning:", numpy.sum(is_matched))
+            matched = merged[is_matched]
+            print(fiber_id, reident_poly)
+            all_reident_polys[fiber_id,:] = reident_poly
+
+            # Now we have a way to relate the current to the reference spectrum.
+
+
+            # invert
+            reident_reverse = numpy.polyfit(
+                matched['gauss_center_y0'], # - self.grating_solution.y_center,
+                matched['ref_gauss_center'] - self.grating_solution.y_center,
+                deg=1
+            )
+            # apply this fit work out where, in this spectrum, our lines from the reference
+            # spectrum would be
+            comp_wl_positions = numpy.polyval(
+                self.wavelength_solution,
+                numpy.polyval(
+                    reident_reverse,
+                    this_fiber_inventory['gauss_center_y0'] #-self.grating_solution.y_center
+                )
+            )
+            ref_wl = self.ref_inventory_selected['gauss_wl']
+            poly = numpy.polyfit(
+                this_fiber_inventory['gauss_center_y0'], #-self.grating_solution.y_center,
+                comp_wl_positions, deg=self.wl_polyfit_order
+            )
+            if (not absolute):
+                self.logger.info("Skipping absolute WL calibration during re-identify")
+                self.fiber_wavelength_solutions[fiber_id] = poly
+                self.fiber_wavelength_solutions_inverse[fiber_id] = numpy.polyfit(
+                    comp_wl_positions,
+                    this_fiber_inventory['gauss_center_y0'].to_numpy(),
+                    deg=self.wl_polyfit_order
+                )
+                continue
+
+            numpy.savetxt("reindent_poly_raw_%d" % (fiber_id+1), poly)
+            comps_renamed = pandas.DataFrame(this_fiber_inventory)
+            comps_renamed.columns = ["comp_%s" % s for s in this_fiber_inventory.columns]
+            if (fiber_id < 5): comps_renamed.info()
+            wl_match_radius = 3 * numpy.fabs(poly[-2])
+            for rematch_iter in range(1):
+
+                self.logger.info("%d :: %s" % (rematch_iter, str(poly)))
+                old_poly = poly.copy()
+                comp_full_wl = numpy.polyval(poly, comps_renamed['comp_gauss_center_y0'])
+                ref_wl = self.ref_inventory['gauss_wl'].to_numpy()
+
+                # merge comp & ref catalog
+                merged_df = match_catalogs(
+                    ref_wl, comp_full_wl, self.ref_inventory, comps_renamed,
+                    max_delta_wl=wl_match_radius)
+                merged_df.loc[:, 'comp_gauss_wl'] = comp_full_wl
+                merged_df.loc[:, 'dummy1'] = numpy.ones_like(comp_full_wl)
+
+                refit_iter = 0
+                for refit_iter in range(3):
+
+                    delta_wl = merged_df['comp_gauss_wl'] - merged_df['ref_gauss_wl']
+                    small_delta_wl = numpy.isfinite(delta_wl)
+                    #print("BEFORE CLEAN:", numpy.sum(small_delta_wl))  # , "\n", delta_wl)
+                    for _iter in range(3):
+                        _stats = numpy.nanpercentile(delta_wl[small_delta_wl], [16, 50, 84])
+                        _med = _stats[1]
+                        _sigma = 0.5 * (_stats[2] - _stats[0])
+                        new_small_delta_wl = small_delta_wl & (delta_wl < (_med + 3 * _sigma)) & (
+                                delta_wl > (_med - 3 * _sigma))
+                        if ((new_small_delta_wl == small_delta_wl).all()):
+                            print("No new outliers detected, skipping remaining iterations")
+                            break
+                        small_delta_wl = new_small_delta_wl
+
+                    self.logger.debug("rematch: %d / refit: %d / clean: %d ==> _med=%.2f  std(d_wl)=%.3f" % (
+                        rematch_iter + 1, refit_iter + 1, _iter + 1, _med, _sigma))
+
+                    # select a good set of lines that match pretty well, and fit a polynomial
+                    poly = numpy.polyfit(merged_df['comp_gauss_center_y0'][small_delta_wl],
+                                         merged_df['ref_gauss_wl'][small_delta_wl],
+                                         deg=self.wl_polyfit_order)
+
+                    wl_fit = numpy.polyval(poly, merged_df['comp_gauss_center_y0'])
+
+                    ref_wl = merged_df['ref_gauss_wl']
+                    error_wl = merged_df['ref_gauss_wl'] - wl_fit
+
+                if (poly.shape == old_poly.shape):
+                    if ((poly == old_poly).all()):
+                        print("No further changes, aborting fitting")
+                        break
+                # break
+            # end re-fit & re-match
+            numpy.savetxt("reindent_poly_final_%d" % (fiber_id+1), poly)
+            self.fiber_wavelength_solutions[fiber_id] = poly
+
+            self.fiber_wavelength_solutions_inverse[fiber_id] = numpy.polyfit(
+                merged_df['ref_gauss_wl'][small_delta_wl],
+                merged_df['comp_gauss_center_y0'][small_delta_wl],
+                deg=self.wl_polyfit_order
+            )
+            self.logger.info("Reident fiber %d: %d lines, std: %f" % (
+                fiber_id+1, numpy.sum(small_delta_wl), numpy.std(error_wl[small_delta_wl])))
+            merged_df['in_final_fit'] = small_delta_wl
+            merged_df.to_csv("reidentify_merged_%d.csv" % (fiber_id), index=False)
+
+            #
+            # wl_match_range = 3 * numpy.fabs(self.wavelength_solution[-2])
+            # comp_wl_matched_to_ref = match_catalogs(
+            #     ref_wl=ref_wl, comp_wl=comp_wl_positions,
+            #     ref_cat=self.ref_inventory_selected,
+            #     comp_cat=self.this_fiber_inventory,
+            #     max_delta_wl=wl_match_range
+            # )
+            #
+            #
+            # #
+            # #         self.matched_line_inventory['comp_gauss_center_y0']
+            # # )
+            #
+            # use_for_fit = self.matched_line_inventory['good_line_match']
+            # # this gives us a set of y pixel positions, and
+            # # a matching set of reference wavelengths
+            # self.fiber_wavelength_solutions[fiber_id] = numpy.polyfit(
+            #     ref_positions[use_for_fit],
+            #     self.matched_line_inventory['ref_gauss_wl'][use_for_fit],
+            #     deg=self.wl_polyfit_order)
+            #
+            # self.fiber_wavelength_solutions_inverse[fiber_id] = numpy.polyfit(
+            #     self.matched_line_inventory['ref_gauss_wl'][use_for_fit],
+            #     ref_positions[use_for_fit],
+            #     deg=self.wl_polyfit_order)
+            #
+            # merged.to_csv("reident_merged_%d.csv" % (fiber_id+1), index=False)
+
+        print(all_fiber_scalings)
+        print(all_fiber_offsets)
+        numpy.savetxt("reidentify_all_scaling", all_fiber_scalings)
+        numpy.savetxt("reidentify_all_offsets", all_fiber_offsets)
+        numpy.savetxt("reidentify_all_polys", all_reident_polys)
+        self.logger.info("Done with NEW reidentify")
+
+        return
+
         central_wl_offset = wls - wls[ref_fiberid]
         # print(central_wl_offset)
         if (self.debug): numpy.savetxt("wl_xy.txt", numpy.array([fiber_positions, wls, central_wl_offset]).T)
