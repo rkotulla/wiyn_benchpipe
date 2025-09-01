@@ -76,6 +76,74 @@ def pick_locally_bright_lines(cat, n_blocks, n_per_block, xmin, xmax, col_pos='g
     return final_cat
 
 
+def find_best_offset(comp, ref, bins, conv=None, return_hist=False):
+    bin_centers = 0.5 * (bins[:-1] + bins[1:])
+
+    diffs = comp.reshape((-1, 1)) - ref.reshape((1, -1))
+    hist, _bins = numpy.histogram(diffs.ravel(), bins=bins)
+
+    if (conv is not None):
+        hist_added = numpy.convolve(hist, conv, mode='same')
+    else:
+        hist_added = hist
+
+    peak_pos = numpy.argmax(hist_added)
+    max_line_matches = hist_added[peak_pos]
+    best_offset = bin_centers[peak_pos]
+    if (return_hist):
+        return best_offset, max_line_matches, (hist, hist_added)
+
+    return best_offset, max_line_matches
+
+
+def match_catalogs(ref_wl, comp_wl, ref_cat, comp_cat, max_delta_wl, match_counter=None):
+
+    # check if # of values matches
+    if (ref_wl.shape[0] != len(ref_cat.index) or
+        comp_wl.shape[0] != len(comp_cat.index)):
+        print("MATCHING ERROR")
+        raise ValueError("Number of points and catalog don't match")
+
+    ref_df = ref_cat.reset_index(drop=True)
+        #pandas.DataFrame(ref_cat, index=numpy.arange(len(ref_cat.index))))
+    ref_df.columns = ["ref_%s" % c for c in ref_df.columns]
+    # ref_df.info()
+
+    merged_df = comp_cat.reset_index(drop=True)
+    #pandas.DataFrame(comp_cat, index=numpy.arange(len(comp_cat.index)))
+    merged_df['wl_distance'] = numpy.nan
+    merged_df['comp_wl'] = comp_wl
+    # merged_df.info()
+
+    if (match_counter is not None):
+        match_counter[0] += 1
+        numpy.savetxt("match_catalog_ref_wl.%d" % (match_counter[0]), ref_wl)
+        numpy.savetxt("match_catalog_comp_wl.%d" % (match_counter[0]), comp_wl)
+        ref_cat.to_csv("match_catalog_ref_cat.%d" % (match_counter[0]), index=False)
+        comp_cat.to_csv("match_catalog_comp_cat.%d" % (match_counter[0]), index=False)
+
+    # print("REF index:\n", ref_cat.index)
+    # print("COMP index:\n", comp_cat.index)
+
+    _ref_wl = ref_wl.reshape((1, -1))
+    _comp_wl = comp_wl.reshape((-1, 1))
+    # print("REF:", _ref_wl.shape, "   COMP:", _comp_wl.shape)
+
+    diff = numpy.fabs(_ref_wl - _comp_wl)
+    # print(diff.shape)
+    closest = numpy.argmin(diff, axis=1)
+    # print(closest)
+    # print(closest.shape)
+
+    for i in range(comp_wl.shape[0]):
+        distance = diff[i, closest[i]]
+        # print(distance, max_delta_wl)
+        if (distance < max_delta_wl):
+            merged_df.loc[i, ref_df.columns] = ref_df.loc[closest[i], ref_df.columns]
+            merged_df.loc[i, 'wl_distance'] = distance
+
+    return merged_df
+
 
 class BenchSpek(object):
 
