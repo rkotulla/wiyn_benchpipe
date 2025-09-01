@@ -78,7 +78,14 @@ class Grating(object):
         )
         return wavelength
 
-    def y_from_wavelength(self, wavelength, return_y0=True, x0=0.0):
+    def y_from_wavelength(self, wavelength, return_y0=True, x0=None, x=None):
+        if (x0 is not None):
+            pass
+        elif (x0 is None and x is not None):
+            x0 = x - self.midline_x
+        elif (x0 is None and x is None):
+            # both are none
+            x0 = 0.0
         x0_phys = x0 * self.ccd_x_bin * self.ccd_pixelsize
         angle_dx = numpy.arctan(x0_phys / self.grating_camera_distance) * self.camera_magnification
 
