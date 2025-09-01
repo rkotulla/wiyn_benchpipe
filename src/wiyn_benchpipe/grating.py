@@ -26,6 +26,7 @@ class Grating(object):
     midline_x = 0
 
     y0 = 0
+    y_center = 0
 
     def __init__(self, header, midline_x=None, *args, **kwargs):
         self.logger = logging.getLogger(self.name)
@@ -52,7 +53,7 @@ class Grating(object):
 
         self.wl_blueedge = numpy.min(self.wavelength_solution)
         self.wl_rededge = numpy.max(self.wavelength_solution)
-
+        self.y_center = self.ccd_npixels_y / self.ccd_y_bin / 2
         return
 
     def wavelength_from_xy(self, x=None, x0=None, y=None, y0=None):
