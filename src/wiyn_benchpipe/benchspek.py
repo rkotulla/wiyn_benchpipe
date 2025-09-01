@@ -3,6 +3,7 @@
 import argparse
 import os
 
+import astropy.table
 import numpy
 import scipy.ndimage
 
