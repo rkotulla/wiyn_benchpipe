@@ -243,10 +243,10 @@ class GenericFiberSpecs(object):
                 numpy.savetxt("prof_y=%d" % y, prof)
                 numpy.savetxt("profpeaks_y=%d" % y, numpy.array([peaks, prof[peaks]]).T)
 
-            if (peaks.shape[0] != self.n_fibers):
-                # We didn't find the right number of peaks, so we can't use this one
-                print(y, "off, #=%d" % (peaks.shape[0]))
-                continue
+            # if (peaks.shape[0] != self.n_fibers):
+            #     # We didn't find the right number of peaks, so we can't use this one
+            #     print(y, "off, #=%d" % (peaks.shape[0]))
+            #     continue
 
             # reverse the flat, and find all valleys
             inv_norm = 1. - norm_prof
