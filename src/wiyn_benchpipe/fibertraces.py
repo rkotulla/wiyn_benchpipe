@@ -17,6 +17,99 @@ global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=
 physical\
 """
 
+
+class LineTraceHandler:
+
+    def __init__(self, max_shift=3, logger=None):
+        self.ys = []
+        self.peaks = []
+        self.max_shift = max_shift
+        self.logger = logger if logger is not None else logging.getLogger(__name__)
+
+    def add_row(self, y, new_peaks):
+        self.logger.debug("Adding %d peaks for y=%d" % (new_peaks.shape[0], y))
+        self.ys.append(y)
+        if (len(self.peaks) <= 0):
+            # no data yet
+            self.peaks.append(new_peaks)
+        else:
+            # take the last (and presumable most complete) list of lines, and see if we
+            # can match all lines
+            found_match = numpy.isnan(new_peaks)  # set all to False
+            new_matched_peaks = self.peaks[-1] * -1.  # numpy.full_like(self.peaks[-1], fill_value=numpy.nan)
+            newly_found_peaks = []
+
+            # print("Prior line list: y=%d  #=%d // new list: #=%d" % (
+            #    self.ys[-1], new_matched_peaks.shape[0], new_peaks.shape[0]))
+            # print(self.peaks[-1])
+
+            for i, peakpos in enumerate(new_peaks):  # .shape[0]):
+                # print("Checking line @ ", new_peaks[i])
+                # check if we find a peak close to this one
+                delta_peak_pos = numpy.fabs(numpy.fabs(new_matched_peaks) - peakpos)
+                closest = numpy.argmin(delta_peak_pos)
+                if (delta_peak_pos[closest] < self.max_shift):
+                    # we found a match
+                    # print(" %10.2f  ==> found match" % (new_peaks[i]))
+                    new_matched_peaks[closest] = peakpos
+                    found_match[i] = True
+                else:
+                    print(" %10.2f  ==> Found new line" % (new_peaks[i]))
+                    # we have not found a counterpart to this line
+                    newly_found_peaks.append(new_peaks[i])
+            # handle lines we haven't found before
+            if (len(newly_found_peaks) > 0):
+                # print("found new peaks at ", newly_found_peaks)
+                new_matched_peaks = numpy.append(new_matched_peaks, newly_found_peaks)
+            self.peaks.append(new_matched_peaks)
+        # print()
+
+    def finalize(self):
+        # lens = [p.shape[0] for p in self.peaks]
+        # print(lens)
+        self.logger.debug("Finalizing traces")
+        self.ys = numpy.array(self.ys)
+
+        # fill in all the initial gaps
+        self.logger.debug("Completing missing trace detections")
+        self.matched_peaks = numpy.full((len(self.peaks), self.peaks[-1].shape[0]), fill_value=numpy.nan)
+        for i in range(len(self.peaks)):
+            _l = len(self.peaks[i])
+            self.matched_peaks[i, :_l] = self.peaks[i][:_l]
+        self.matched_peaks[self.matched_peaks < 0] = numpy.nan
+
+        # numpy.savetxt("matched_peaks.new", self.matched_peaks)
+
+        # sort all positions to be in order
+        self.logger.debug("Putting all traces in order")
+        typical_positions = numpy.nanmedian(self.matched_peaks, axis=0)
+        _sort = numpy.argsort(typical_positions)
+        self.final_peaks = self.matched_peaks.T[_sort].T
+
+        # interpolate missing values
+        self.logger.info("Interpolating to fill in missing detections")
+        for fiber in range(self.final_peaks.shape[1]):
+            missing = ~numpy.isfinite(self.final_peaks[:, fiber])
+            if (numpy.sum(missing) > 0):
+                # we have some missing data
+                # print("fixing missing data")
+                y_missing = self.ys[missing]
+                self.final_peaks[missing, fiber] = numpy.interp(y_missing, self.ys[~missing],
+                                                                self.final_peaks[~missing, fiber])
+
+        self.logger.debug("all done finalizing")
+
+    def to_ds9(self, ds9_fn, color='green'):
+        with open(ds9_fn, "w") as ds9:
+            print("""\
+# Region file format: DS9 version 4.1
+global color=%s dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
+physical""" % (color), file=ds9)
+            for y, peaks in zip(self.ys, self.final_peaks):
+                for p in peaks[numpy.isfinite(peaks)]:
+                    print("point(%.1f,%.1f) # point=cross" % (p + 1, y + 1), file=ds9)
+
+
 class GenericFiberSpecs(object):
 
     n_fibers = -1
@@ -122,6 +215,9 @@ class GenericFiberSpecs(object):
         all_peaks = []
         all_traces_y = []
         all_valleys = []
+        line_trace_handler = LineTraceHandler()
+        raw_valleys = {}
+
         for y in range(dy, bgsub.shape[0], 2 * dy):
             prof = numpy.nanmedian(bgsub[y - dy:y + dy, :], axis=0)
 
@@ -137,6 +233,8 @@ class GenericFiberSpecs(object):
             peaks, peak_props = scipy.signal.find_peaks(norm_prof, height=0.25, distance=3)
             valid_peaks = (peaks > trace_minx) & (peaks <= trace_maxx)
             peaks = peaks[valid_peaks]
+
+            line_trace_handler.add_row(y, peaks)
 
             raw_all_y.append(y)
             raw_all_peaks.append(peaks)
@@ -156,11 +254,22 @@ class GenericFiberSpecs(object):
             valid_valley = (valleys >= trace_minx) & (valleys <= trace_maxx)
             valleys = valleys[valid_valley]
 
+            raw_valleys[y] = valleys
+
+        line_trace_handler.finalize()
+        #print("@@@@@ LTH",  line_trace_handler.final_peaks.shape)
+        self.logger.info("Instrument specs: %d fibers; detected: %d" % (self.n_fibers, line_trace_handler.final_peaks.shape[1]))
+
+        for i,y in enumerate(raw_valleys.keys()):
+            valleys = raw_valleys[y]
+
+            peaks = line_trace_handler.final_peaks[i,:]
+
             _left = peaks[0]
             _right = peaks[-1]
             good = (valleys > _left) & (valleys < _right)
             good_valleys = valleys[good]
-            if (len(good_valleys) != self.n_fibers-1):
+            if (len(good_valleys) != peaks.shape[0]-1):
                 fixed_valleys = []
                 for l,r in zip(peaks[:-1], peaks[1:]):
                     in_between = (good_valleys > l) & (good_valleys < r)
