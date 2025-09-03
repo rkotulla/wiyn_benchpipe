@@ -37,18 +37,7 @@ warnings.filterwarnings('ignore', r'divide by zero encountered in divide')
 warnings.filterwarnings('ignore', r'invalid value encountered in divide')
 warnings.simplefilter("ignore", RuntimeWarning)
 
-def gauss(x, center, sigma, amplitude, background):
-    return amplitude * numpy.exp(-(x - center) ** 2 / (2*sigma ** 2)) + background
-def normalized_gaussian(x, mu, sig):
-    return 1.0 / (numpy.sqrt(2.0 * numpy.pi) * sig) * numpy.exp(-numpy.power((x - mu) / sig, 2.0) / 2)
-def wl2pixel(wl, hdr):
-    px = (wl - hdr['CRVAL1']) / hdr['CD1_1'] + hdr['CRPIX1']  - 1
-    return numpy.max([0, numpy.min([px, hdr['NAXIS1']])]).astype(int)
 
-def _fit_gauss(p, x, flux, noise=100):
-    model = gauss(x, center=p[0], sigma=p[1], amplitude=p[2], background=p[3])
-    diff = model - flux
-    return (diff / noise) ** 2
 
 
 class BenchSpek(object):
