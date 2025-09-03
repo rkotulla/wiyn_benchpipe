@@ -129,6 +129,8 @@ class GenericFiberSpecs(object):
     input_ext_data = 0
     input_ext_header = 0
 
+    reference_fiber_data = None
+
     def __init__(self, logger=None, debug=False, trace_minx=None, trace_maxx=None, header=None):
         if (self.n_fibers < 0):
             raise ValueError("Invalid number of fibers (%d) -- don't use the base class!" % (self.n_fibers))

@@ -1,13 +1,20 @@
+import os.path
+
 import numpy
 import astropy.coordinates as coord
 import astropy.units as u
 import astropy.io.fits as pyfits
 import astropy.stats
+import pandas as pd
 
 from ...fibertraces import GenericFiberSpecs
 from .wiyn_bench import wiyn_grating_from_header, WIYNBenchFiberSpecs
 
 class WiynHydraFiberSpecs(WIYNBenchFiberSpecs):
+
+    reference_fiber_data_file = None
+
+
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -36,6 +43,14 @@ class WiynHydraFiberSpecs(WIYNBenchFiberSpecs):
             #self.n_fibers = _n_fibers
             self.logger.info("Updating #fibers from header: %d" % self.n_fibers)
             self.logger.info("Number of sky fibers: %d" % (len(self.sky_fiber_ids)))
+
+        print("XXXXXX", self.reference_fiber_data_file)
+        if (self.reference_fiber_data_file is not None):
+            _fn = os.path.abspath(__file__)
+            dir, _ = os.path.split(_fn)
+            ref_fn = os.path.join(dir, self.reference_fiber_data_file)
+            self.logger.info("Reading FIBER reference data from %s" % (ref_fn))
+            self.reference_fiber_data = pd.read_csv(ref_fn)
 
     def get_sky_fiber_ids(self, filelist=None, *args, **kwargs):
         sky_fibers = []
@@ -171,6 +186,7 @@ class WiynHydraRedFiberSpecs( WiynHydraFiberSpecs ):
     trace_minx = 120
     trace_maxx = 2520
 
+
 class WiynHydraBlueFiberSpecs( WiynHydraFiberSpecs ):
     n_fibers = 87
     name = "Hydra Blue Cable @ WIYN"
@@ -178,4 +194,7 @@ class WiynHydraBlueFiberSpecs( WiynHydraFiberSpecs ):
 
     trace_minx = 120
     trace_maxx = 2520
+
+    reference_fiber_data_file = "hydra_blue_apertures.csv"
+
 
