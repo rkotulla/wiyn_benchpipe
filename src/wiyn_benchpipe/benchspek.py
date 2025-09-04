@@ -3057,10 +3057,13 @@ class BenchSpek(object):
         return fiber_coords
 
     def pointing_data_to_header(self, fiber_coords, header):
-        for fiberid in range(self.raw_traces.n_fibers):
-            coord = fiber_coords[fiberid]
-            header['F%03d_RA' % (fiberid+1)] = coord.ra.to(u.degree).value
-            header['F%03d_DEC'% (fiberid+1)] = coord.dec.to(u.degree).value
+        try:
+            for fiberid in range(self.raw_traces.n_fibers):
+                coord = fiber_coords[fiberid]
+                header['F%03d_RA' % (fiberid + 1)] = coord.ra.to(u.degree).value
+                header['F%03d_DEC' % (fiberid + 1)] = coord.dec.to(u.degree).value
+        except:
+            mplog.log_exception()
 
 
     def reduce(self):
