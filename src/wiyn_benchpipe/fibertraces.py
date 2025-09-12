@@ -199,6 +199,9 @@ class GenericFiberSpecs(object):
     fiber_profiles = None
     header = None
 
+    bin_x = 1
+    bin_y = 1
+
     trace_minx = 0
     trace_maxx = 1e9
 
@@ -211,8 +214,10 @@ class GenericFiberSpecs(object):
     input_ext_header = 0
 
     reference_fiber_data = None
+    fiber_identifications = None
 
-    def __init__(self, logger=None, debug=False, trace_minx=None, trace_maxx=None, header=None):
+    def __init__(self, logger=None, debug=False, trace_minx=None, trace_maxx=None, header=None,
+                 reference_fiber_data_filename=None):
         if (self.n_fibers < 0):
             raise ValueError("Invalid number of fibers (%d) -- don't use the base class!" % (self.n_fibers))
         self.debug = debug
@@ -230,6 +235,8 @@ class GenericFiberSpecs(object):
             self.header = header
 
         self.logger.info("Loading definitions for %s" % (self.name))
+        self.load_reference_fiber_data(reference_fiber_data_filename)
+
         return
 
     def find_trace_fibers(self, trace_image):
@@ -828,14 +835,14 @@ class GenericFiberSpecs(object):
             return self.sky_fiber_ids
         raise ValueError("No sky fiber IDs defined")
 
-    def reorder_fibers(self, fiberspecs):
-        return fiberspecs.copy()
+    # def reorder_fibers(self, fiberspecs):
+    #     return fiberspecs.copy()
 
     def grating_from_header(self, *args, **kwargs):
         return Grating(*args, **kwargs)
 
     def get_binning_x(self):
-        return 1
+        return self.bin_x
 
     def interpolate_missing_fibers(self):
         return
@@ -857,6 +864,215 @@ class GenericFiberSpecs(object):
         header = hdulist[cls.input_ext_header].header
 
         return data, header
+
+    def load_reference_fiber_data(self, filename=None):
+        if (filename is None):
+            filename = self.reference_fiber_data_file
+        if (filename is None):
+            self.logger.warning("No reference fiber data file specified")
+        elif (not os.path.exists(filename)):
+            self.logger.warning("Specified reference fiber data file (%s) not found" % (filename))
+            self.logger.debug("Next trying to locate file in pipeline data directory")
+            _fn = get_file(os.path.join("fiber_references", filename))
+            if (os.path.isfile(_fn)):
+                self.logger.info("Found reference file: %s" % (_fn))
+                filename = _fn
+            else:
+                return None
+
+        # Now  we have the correct file
+        reference_fiber_data = pandas.read_csv(filename)
+
+        # Check that the most basic columns exist
+        all_found = True
+        needed_columns = ['position', 'fiberid']
+        for key in needed_columns:
+            all_found = all_found & (key in reference_fiber_data.columns)
+        if (not all_found):
+            self.logger.info("Unable to find all required columns (%s) in %s" % (", ".join(needed_columns), filename))
+            return None
+
+        self.reference_fiber_data = reference_fiber_data
+        self.logger.info("Successfully loaded reference fiber data from %s" % (filename))
+
+    def crossmatch_fiberids(self):
+        if (self.reference_fiber_data is None):
+            self.logger.warning("No reference fiber data loaded, unable to crossmatch fiber detections")
+            return
+
+        # calculate reference positions in binned image
+        self.bin_x = 1
+        self.reference_fiber_data['binned_position'] = self.reference_fiber_data['position'] #/ self.get_binning_x()
+        reference_fiber_positions = self.reference_fiber_data['binned_position'].to_numpy()
+        print("reference positions:\n",reference_fiber_positions)
+
+        # # Todo: load all this from csv directly
+        # ref_df = pandas.DataFrame()
+        # ref_df.loc[:, 'position'] = ref_apertures
+        # ref_df.loc[:, 'fiberid'] = numpy.arange(ref_apertures.shape[0])[::-1] + 2
+        # ref_df.to_csv("hydra_blue_apertures.csv", index=False)
+
+        # find typical spacing between fibers; we'll use this to determine a maximum matching radius
+        med_spacing = numpy.median(numpy.diff(reference_fiber_positions))
+        self.logger.info("median line spacing (from instrument definition): %.2f pixels" % ( med_spacing))
+
+        # find where all observed fibers are, based on the extracted trace data
+        mean_fiber_positions = numpy.nanmedian(self.all_centers, axis=0)
+        print("mean fiber positions:\n",mean_fiber_positions)
+
+        # find offset between positions in comp frame and cataloged/published positions
+        # conv = numpy.array([0.2,0.5,1,2,1,0.5,0.2])
+        # conv = numpy.array([0.05,0.2,1,2,2,2,1,0.2,0.05])
+        conv_x = numpy.arange(-med_spacing / 2, med_spacing / 2 + 1)  # *0.5
+        conv_gauss = gauss(conv_x, center=0., sigma=0.15 * med_spacing, amplitude=1, background=0)
+        conv = conv_gauss / numpy.sum(conv_gauss)
+        max_shift = 450
+        offsets = numpy.linspace(-max_shift, max_shift, 2 * max_shift + 1)
+
+        max_scale_error = 0.02
+        scalings = numpy.linspace(1.-max_scale_error, 1+max_scale_error, 100)
+        all_offsets = numpy.ones_like(scalings)
+        all_matches = numpy.ones_like(scalings)
+        # center_x = 1024.
+        for i,scaling in enumerate(scalings):
+
+            centered_reference = reference_fiber_positions * scaling #- center_x
+            centered_observed = mean_fiber_positions #- center_x) * scaling
+
+            all_offsets[i], all_matches[i] = find_best_offset(
+                centered_observed, centered_reference, bins=offsets,
+                return_hist=False, conv=conv_gauss)
+        numpy.savetxt("crossmatch_scalings.txt", numpy.array([scalings, all_offsets, all_matches]).T)
+
+        most_matches = numpy.argmax(all_matches)
+        best_scaling = scalings[most_matches]
+        best_offset = all_offsets[most_matches]
+        matches = all_matches[most_matches]
+
+        self.logger.info("Best fiber crossmatch: scaling=%.4f, offset=%.1f ==> %d matches" % (
+            best_scaling, best_offset, matches))
+        centered_reference = reference_fiber_positions * best_scaling #- center_x
+        centered_observed = mean_fiber_positions #- center_x) * best_scaling
+
+        best_offset, matches, (hist, hist_added) = find_best_offset(
+            centered_observed, centered_reference, bins=offsets,
+            return_hist=True, conv=conv_gauss)
+        # best_offset, matches, (hist, hist_added) = find_best_offset(
+        #     mean_fiber_positions, reference_fiber_positions, bins=offsets,
+        #     return_hist=True, conv=conv_gauss)
+        self.logger.info("crossmatch comp <-> reference :: best offset: %.1f pixels // #matches: %.2f" % (best_offset, matches))
+        # print("# matches:", matches)
+
+        # mean_fiber_positions_shifted_to_reference = centered_observed - best_offset
+        aligned_observed = mean_fiber_positions
+        aligned_reference = reference_fiber_positions * best_scaling + best_offset
+
+        mean_offset = 0.5 * (offsets[1:] + offsets[:-1])
+        fig, ax = plt.subplots(figsize=(12,5))
+        ax.plot(mean_offset, hist_added, c='blue', lw=0.5)
+        ax.scatter(mean_offset, hist_added, c='blue', s=1)
+        ax.plot(mean_offset, hist_added, c='orange', lw=0.5)
+        ax.scatter(mean_offset, hist, c='orange', s=1)
+        numpy.savetxt("crossmatch.dmp", numpy.array([mean_offset, hist, hist_added]).T)
+        fig.savefig("crossmatch_fibers.pdf")
+
+
+        comp_df = pandas.DataFrame()
+        comp_df.loc[:, 'trace_position'] = mean_fiber_positions + 1
+        comp_df.loc[:, 'trace_position_aligned'] = aligned_observed + 1 # mean_fiber_positions_shifted_to_reference + center_x
+        comp_df.loc[:, 'id'] = numpy.arange(mean_fiber_positions.shape[0])
+
+        # merged = match_catalogs(
+        #     ref_wl=reference_fiber_positions,
+        #     comp_wl=mean_fiber_positions,
+        #     ref_cat=self.reference_fiber_data,
+        #     comp_cat=comp_df,
+        #     max_delta_wl=med_spacing / 2.,
+        # )
+        merged = match_catalogs(  # somewhat backwards, but this ensures that all reference lines are guaranteed to show up
+            comp_wl=aligned_reference, #centered_reference,
+            ref_wl=aligned_observed, #mean_fiber_positions_shifted_to_reference,
+            comp_cat=self.reference_fiber_data,
+            ref_cat=comp_df,
+#            comp_prefix="ref_", ref_prefix=None,
+            comp_prefix="", ref_prefix="obs_",
+            max_delta_wl=med_spacing / 2.,
+        )
+        merged['trace_position_predicted'] = aligned_reference + 1 #(merged['binned_position'] * best_scaling + offset
+                #(merged['binned_position'] + best_offset - center_x) / best_scaling + center_x)
+        self.fiber_identifications = merged
+        merged.to_csv("fiber_identifications.csv", index=False)
+
+    def reorder_fibers(self, native_frame, reorder='native'):
+
+        self.logger.debug("Re-ordering fibers, mode %s" % (reorder))
+        self.logger.debug("ref-fiber-data: %s" % (", ".join(self.reference_fiber_data.columns)))
+        items = reorder.split('.')
+        reorder_mode = items[0]
+        reorder_keep = None
+        if (len(items) > 1):
+            reorder_keep = items[1]
+
+        if (self.reference_fiber_data is None or self.fiber_identifications is None):
+            self.logger.warning("No reference fiber data found")
+            return native_frame
+
+        if (reorder_mode == "native"):
+            return native_frame
+
+        elif (reorder_mode == 'reverse'):
+            return native_frame[::-1]
+
+        elif (reorder_mode == "fiberid"):
+            ref_fiberids = self.fiber_identifications['fiberid'].fillna(-1).astype(int).to_numpy()
+
+            # eliminate all negative fiberids -- these are considered placeholders
+            ref_fiberids = ref_fiberids[ref_fiberids >= 0]
+
+            # check if we want all IDS or just the ones we found
+            if (reorder_keep == 'range'):
+                min_id = numpy.min(ref_fiberids)
+                max_id = numpy.max(ref_fiberids)
+                print(min_id, max_id)
+                ref_ids = numpy.arange(min_id, max_id+1)
+            elif (reorder_keep == 'all'):
+                max_id = numpy.max(ref_fiberids)
+                ref_ids = numpy.arange(1, max_id+1)
+            elif (reorder_keep == 'custom'):
+                if (len(items) >= 4):
+                    min_id = int(items[2])
+                    max_id = int(items[3])
+                    ref_ids = numpy.arange(min_id, max_id+1)
+                else:
+                    print("Error, not enough information, default to -native- mode")
+                    pass
+            elif (reorder_keep == 'keep'):
+                ref_ids = ref_fiberids
+            else:
+                found = numpy.isfinite(self.fiber_identifications['fiberid'])
+                ref_ids = ref_fiberids[found]
+
+            output_ids_df = pandas.DataFrame.from_dict(dict(fiberid=ref_ids))
+            merged = output_ids_df.merge(
+                self.fiber_identifications,
+                left_on="fiberid", right_on="fiberid", how="outer")
+
+            raw_ids = merged['obs_id'].fillna(value=-1).astype(int).to_numpy()
+
+            reorg = native_frame[raw_ids]
+            #print(raw_ids)
+            #print(skysub_reorg.shape)
+
+            blank_out = raw_ids < 0
+            reorg[blank_out] = numpy.nan
+
+            return reorg
+
+        else:
+            self.logger.warning("Unknown fiber-reordering mode %s" % (reorder))
+
+        return native_frame
+
 
 # class SparsepakFiberSpecs( GenericFiberSpecs ):
 #     n_fibers = 82
