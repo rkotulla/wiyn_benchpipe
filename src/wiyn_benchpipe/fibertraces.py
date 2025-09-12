@@ -10,6 +10,8 @@ import astropy.stats
 import matplotlib.pyplot as plt
 
 from .grating import Grating
+from .functions import find_best_offset, match_catalogs, gauss
+from .data import get_file
 
 DS9_HEADER = """\
 # Region file format: DS9 version 4.1
