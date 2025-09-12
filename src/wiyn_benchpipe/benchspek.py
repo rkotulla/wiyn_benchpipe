@@ -1256,7 +1256,7 @@ class BenchSpek(object):
                 # find lines that don't match well
                 delta_wl = merged_df['comp_gauss_wl'] - merged_df['ref_gauss_wl']
                 small_delta_wl = numpy.isfinite(delta_wl)
-                print("BEFORE CLEAN:", numpy.sum(small_delta_wl))  # , "\n", delta_wl)
+                # print("BEFORE CLEAN:", numpy.sum(small_delta_wl))  # , "\n", delta_wl)
                 for _iter in range(3):
                     _stats = numpy.nanpercentile(delta_wl[small_delta_wl], [16, 50, 84])
                     _med = _stats[1]
@@ -1271,8 +1271,8 @@ class BenchSpek(object):
                     # print("rematch: %d / refit: %d / clean: %d ==> _med=%.2f  std(d_wl)=%.3f" % (
                     #     rematch_iter + 1, refit_iter + 1, _iter + 1, _med, _sigma))
                 # print("\nAFTER CLEAN:", numpy.sum(small_delta_wl), "\n", delta_wl[small_delta_wl])
-                print("rematch: %d / refit: %d / clean: %d ==> _med=%.2f  std(d_wl)=%.3f" % (
-                    rematch_iter + 1, refit_iter + 1, _iter + 1, _med, _sigma))
+                # print("rematch: %d / refit: %d / clean: %d ==> _med=%.2f  std(d_wl)=%.3f" % (
+                #     rematch_iter + 1, refit_iter + 1, _iter + 1, _med, _sigma))
 
                 # select a good set of lines that match pretty well, and fit a polynomial
                 poly = numpy.polyfit(merged_df['comp_gauss_center_y0'][small_delta_wl],
@@ -1819,9 +1819,9 @@ class BenchSpek(object):
                     break
                 is_matched = new_matched
 
-            print(fiber_id, "before:", len(merged.index), "   after cleaning:", numpy.sum(is_matched))
+            #print(fiber_id, "before:", len(merged.index), "   after cleaning:", numpy.sum(is_matched))
             matched = merged[is_matched]
-            print(fiber_id, reident_poly)
+            #print(fiber_id, reident_poly)
             all_reident_polys[fiber_id,:] = reident_poly
 
             # Now we have a way to relate the current to the reference spectrum.
@@ -1848,7 +1848,7 @@ class BenchSpek(object):
                 comp_wl_positions, deg=self.wl_polyfit_order
             )
             if (not absolute):
-                self.logger.info("Skipping absolute WL calibration during re-identify")
+                self.logger.debug("Skipping absolute WL calibration during re-identify")
                 self.fiber_wavelength_solutions[fiber_id] = poly
                 self.fiber_wavelength_solutions_inverse[fiber_id] = numpy.polyfit(
                     comp_wl_positions,
