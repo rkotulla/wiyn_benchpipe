@@ -20,6 +20,13 @@ physical\
 """
 
 
+
+def gaussian(x, mu, sig):
+    return (
+        1.0 / (numpy.sqrt(2.0 * numpy.pi) * sig) * numpy.exp(-numpy.power((x - mu) / sig, 2.0) / 2)
+    )
+
+
 class LineTraceHandler:
 
     def __init__(self, max_shift=3, logger=None):
