@@ -110,7 +110,7 @@ def wl2pixel(wl, hdr):
     return numpy.max([0, numpy.min([px, hdr['NAXIS1']])]).astype(int)
 
 
-def _fit_gauss(p, x, flux, noise=100):
+def fit_gauss(p, x, flux, noise=100):
     model = gauss(x, center=p[0], sigma=p[1], amplitude=p[2], background=p[3])
     diff = model - flux
     return (diff / noise) ** 2

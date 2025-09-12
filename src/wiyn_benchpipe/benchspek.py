@@ -464,7 +464,7 @@ class BenchSpek(object):
             ax.axvline(x=weighted, lw=0.2)
 
             fit_results = scipy.optimize.leastsq(
-                func=_fit_gauss,
+                func=fit_gauss,
                 x0=[line, 3, peak_flux[i], 0],
                 args=(w_x, w_spec)
             )
@@ -645,8 +645,8 @@ class BenchSpek(object):
 
 
                 full_fit_results = scipy.optimize.leastsq(
-                    func=_fit_gauss,
-                    x0=[weighted, width_estimate, peak_flux, 0], ## position,width,amplitude
+                    func=fit_gauss,
+                    x0=[weighted, width_estimate, peak_flux, 0],  ## position,width,amplitude
                     args=(w_x, w_spec, 50),
                     full_output=True, maxfev=50000,
                 )
