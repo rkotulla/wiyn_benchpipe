@@ -2401,6 +2401,11 @@ class BenchSpek(object):
         self.raw_traces = select_instrument(self.comp_header, debug=self.debug)
         self.raw_traces.debug = False
         self.raw_traces.find_trace_fibers(self.master_flat)
+        self.raw_traces.crossmatch_fiberids()
+        self.raw_traces.fiber_identifications.to_csv("fiber_ids.csv", index=False)
+        self.raw_traces.fiber_identifications.fillna(-999).to_csv("fiber_ids_nonan.csv", index=False)
+        import sys
+        # sys.exit(-1)
         # self.raw_traces.interpolate_missing_fibers()
         self.logger.info("Extracting line profiles for each fiber")
         self.raw_traces.extract_lineprofiles(save_as="lineprofiles.fits", reuse=False)
@@ -3141,8 +3146,9 @@ class BenchSpek(object):
 
             __fn = os.path.join(target_outdir, "%s_rectified_check.fits" % (target_name))
             self.logger.info("Writing extracted & calibrated spectra to %s" % (__fn))
+            reorder_mode = self.config.get(target_name, 'output', 'fiberorder')
             self.write_wavelength_calibrated_image(
-                self.raw_traces.reorder_fibers(rect_sci_target),
+                self.raw_traces.reorder_fibers(rect_sci_target, reorder_mode),
                 target_wl, __fn, target_header)
             # pyfits.PrimaryHDU(data=rect_sci_target).writeto(__fn, overwrite=True)
 
@@ -3223,7 +3229,7 @@ class BenchSpek(object):
             __fn = os.path.join(target_outdir, "%s_skysub.fits" % (target_name))
             self.logger.info("Writing sky-subtracted spectra to %s" % (__fn))
             self.write_wavelength_calibrated_image(
-                self.raw_traces.reorder_fibers(skysub_all),
+                self.raw_traces.reorder_fibers(skysub_all, reorder_mode),
                 target_wl, __fn, target_header)
             # pyfits.PrimaryHDU(data=rect_sci_target).writeto(__fn, overwrite=True)
             # pyfits.PrimaryHDU(data=skysub_all).writeto(__fn, overwrite=True)
