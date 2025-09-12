@@ -37,6 +37,7 @@ class Config(object):
                     'min_wl': -1,
                     'max_wl': -1,
                     'dispersion': 0,
+                    'fiberorder': 'native',
                 },
                 'sky': {
                     'mode': 'default',
