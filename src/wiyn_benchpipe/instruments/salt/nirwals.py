@@ -8,10 +8,13 @@ from ...grating import Grating
 
 class NirwalsFiberSpecs( GenericFiberSpecs ):
     n_fibers = 248
-    ref_fiber_id = list(numpy.arange(110,120))
+    ref_fiber_id = 122 #list(numpy.arange(110,120))
     name = "NIRWALS @ SALT"
     trace_minx = 4
     trace_maxx = 2044
+
+    reference_fiber_data_file = "nirwals_fibermap.csv"
+    reference_fiber_data_file = "nirwals_fibermap_with_positions.csv"
 
     def grating_from_header(self, *args, **kwargs):
         return NirwalsGrating(*args, **kwargs)
