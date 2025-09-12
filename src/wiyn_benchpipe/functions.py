@@ -48,7 +48,8 @@ def find_best_offset(comp, ref, bins, conv=None, return_hist=False):
     return best_offset, max_line_matches
 
 
-def match_catalogs(ref_wl, comp_wl, ref_cat, comp_cat, max_delta_wl, match_counter=None):
+def match_catalogs(ref_wl, comp_wl, ref_cat, comp_cat, max_delta_wl, match_counter=None,
+                   ref_prefix="ref_", comp_prefix=None):
 
     # check if # of values matches
     if (ref_wl.shape[0] != len(ref_cat.index) or
@@ -58,10 +59,14 @@ def match_catalogs(ref_wl, comp_wl, ref_cat, comp_cat, max_delta_wl, match_count
 
     ref_df = ref_cat.reset_index(drop=True)
         #pandas.DataFrame(ref_cat, index=numpy.arange(len(ref_cat.index))))
-    ref_df.columns = ["ref_%s" % c for c in ref_df.columns]
+    if (ref_prefix is not None):
+        ref_df.columns = ["%s%s" % (ref_prefix,c) for c in ref_df.columns]
     # ref_df.info()
 
     merged_df = comp_cat.reset_index(drop=True)
+    if (comp_prefix is not None):
+        merged_df.columns = ["%s%s" % (comp_prefix, c) for c in merged_df.columns]
+
     #pandas.DataFrame(comp_cat, index=numpy.arange(len(comp_cat.index)))
     merged_df['wl_distance'] = numpy.nan
     merged_df['comp_wl'] = comp_wl
