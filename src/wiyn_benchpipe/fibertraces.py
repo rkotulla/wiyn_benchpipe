@@ -27,50 +27,122 @@ class LineTraceHandler:
         self.peaks = []
         self.max_shift = max_shift
         self.logger = logger if logger is not None else logging.getLogger(__name__)
+        self.n_back = []
+        self.n_back_sum = []
+        self.n_matches = []
+        self.inputs = []
+        self.all_n_back = []
+        self.additions = []
 
     def add_row(self, y, new_peaks):
+
         self.logger.debug("Adding %d peaks for y=%d" % (new_peaks.shape[0], y))
         self.ys.append(y)
+        self.inputs.append(new_peaks)
+
+        n_matches = 0
         if (len(self.peaks) <= 0):
             # no data yet
             self.peaks.append(new_peaks)
-        else:
-            # take the last (and presumable most complete) list of lines, and see if we
-            # can match all lines
-            found_match = numpy.isnan(new_peaks)  # set all to False
-            new_matched_peaks = self.peaks[-1] * -1.  # numpy.full_like(self.peaks[-1], fill_value=numpy.nan)
-            newly_found_peaks = []
+            self.n_back = numpy.zeros_like(new_peaks, dtype=int)
+            self.additions.append(new_peaks)
+            return
 
-            # print("Prior line list: y=%d  #=%d // new list: #=%d" % (
-            #    self.ys[-1], new_matched_peaks.shape[0], new_peaks.shape[0]))
-            # print(self.peaks[-1])
+        # take the last (and presumable most complete) list of lines, and see if we
+        # can match all lines
+        found_match = numpy.isnan(new_peaks)  # set all to False
+        new_matched_peaks = numpy.fabs(self.peaks[-1]) * -1.  # numpy.full_like(self.peaks[-1], fill_value=numpy.nan)
+        newly_found_peaks = []
+        new_n_back = self.n_back + 1
 
-            for i, peakpos in enumerate(new_peaks):  # .shape[0]):
-                # print("Checking line @ ", new_peaks[i])
-                # check if we find a peak close to this one
-                delta_peak_pos = numpy.fabs(numpy.fabs(new_matched_peaks) - peakpos)
-                closest = numpy.argmin(delta_peak_pos)
-                if (delta_peak_pos[closest] < self.max_shift):
-                    # we found a match
-                    # print(" %10.2f  ==> found match" % (new_peaks[i]))
-                    new_matched_peaks[closest] = peakpos
-                    found_match[i] = True
-                else:
-                    print(" %10.2f  ==> Found new line" % (new_peaks[i]))
-                    # we have not found a counterpart to this line
-                    newly_found_peaks.append(new_peaks[i])
-            # handle lines we haven't found before
-            if (len(newly_found_peaks) > 0):
-                # print("found new peaks at ", newly_found_peaks)
-                new_matched_peaks = numpy.append(new_matched_peaks, newly_found_peaks)
-            self.peaks.append(new_matched_peaks)
+        # print("Prior line list: y=%d  #=%d // new list: #=%d" % (
+        #    self.ys[-1], new_matched_peaks.shape[0], new_peaks.shape[0]))
+        # print(self.peaks[-1])
+
+        idx = numpy.arange(new_matched_peaks.shape[0])
+        self.additions.append([])
+        for i, peakpos in enumerate(new_peaks):  # .shape[0]):
+            debug = False #(peakpos > 25) & (peakpos < 35) & (y > 640) & (y < 680)
+            # print("Checking line @ ", new_peaks[i])
+            # check if we find a peak close to this one
+            delta_peak_pos = numpy.fabs(numpy.fabs(new_matched_peaks) - peakpos)
+            nearby = delta_peak_pos < self.max_shift
+            closest = numpy.argmin(delta_peak_pos)
+            # check how many nearby matches we found
+            n_potential_matches = numpy.sum(nearby)
+            if (debug):
+                print()
+                print("y=", y)
+                print("### peakpos=", peakpos, "   #matches:", n_potential_matches, " :: ", self.peaks[-1][nearby],
+                      " @ ", idx[nearby])
+
+            if (n_potential_matches > 1):
+                # print("found more than one match, picking from actual detections")
+
+                # found more than one match; pick the one with the most recent valid detection
+                n_back = self.n_back[nearby]
+                most_recent = numpy.argmin(n_back)
+                recent = (n_back <= most_recent)
+                n_most_recent = numpy.sum(recent)
+                if (debug): print("      #recent", n_most_recent, " :: ", n_back)
+                if (n_most_recent == 1):
+                    # found only one most recent match
+                    closest = idx[nearby][most_recent]
+                    # if (debug): print("    options", new_matched_peaks[idx[nearby][recent]], " ===> ", new_matched_peaks[closest])
+                elif (n_most_recent > 1):
+                    # more than one valid match, pick the closest from the recent ones
+                    deltas = delta_peak_pos[nearby][recent]
+                    _closest = numpy.argmin(deltas)
+                    closest = idx[nearby][recent][_closest]
+                if (debug): print("    options", new_matched_peaks[idx[nearby][recent]], " ===> ",
+                                  new_matched_peaks[closest])
+                # ; check if this is still true when only using actual (rather than extrapolated) detections
+
+                # actual_delta = numpy.fabs(new_matched_peaks - peakpos)
+                # #actual_closest = numpy.argmin(actual_delta)
+                # #n_possible_matches = numpy.sum(actual_delta < self.max_shift)
+                # #if (n_possible_matches == 1):
+                # closest = numpy.argmin(actual_delta)
+                # #else:
+                #     # found more than one possible match
+
+            # found a unique match
+            if (delta_peak_pos[closest] < self.max_shift):
+                # we found a match
+                # print(" %10.2f  ==> found match" % (new_peaks[i]))
+                new_matched_peaks[closest] = peakpos
+                found_match[i] = True
+                new_n_back[closest] = 0
+                n_matches += 1
+            else:
+                print(" %10.2f  ==> Found new line" % (new_peaks[i]))
+                # we have not found a counterpart to this line
+                newly_found_peaks.append(new_peaks[i])
+                new_n_back = numpy.append(new_n_back, [0])
+                self.additions[-1].append(new_peaks[i])
+
+        # handle lines we haven't found before
+        if (len(newly_found_peaks) > 0):
+            # print("found new peaks at ", newly_found_peaks)
+            new_matched_peaks = numpy.append(new_matched_peaks, newly_found_peaks)
+        self.peaks.append(new_matched_peaks)
+        # print(new_n_back[:30])
+        # print(new_matched_peaks[:30])
+        self.n_back = new_n_back
+        self.n_matches.append(n_matches)
+        self.n_back_sum.append(numpy.sum(new_n_back))
+        self.all_n_back.append(new_n_back)
         # print()
 
-    def finalize(self):
+    def finalize(self, min_tracepoints=100):
         # lens = [p.shape[0] for p in self.peaks]
         # print(lens)
         self.logger.debug("Finalizing traces")
         self.ys = numpy.array(self.ys)
+
+        # with open("dummy.traces", "w") as d:
+        #     for y,peaks in zip(self.ys, self.peaks):
+        #         print(y, " ".join(['%.1f' % p for p in peaks]), file=d)
 
         # fill in all the initial gaps
         self.logger.debug("Completing missing trace detections")
@@ -79,14 +151,21 @@ class LineTraceHandler:
             _l = len(self.peaks[i])
             self.matched_peaks[i, :_l] = self.peaks[i][:_l]
         self.matched_peaks[self.matched_peaks < 0] = numpy.nan
-
-        # numpy.savetxt("matched_peaks.new", self.matched_peaks)
+        numpy.savetxt("matched_peaks.new", self.matched_peaks)
 
         # sort all positions to be in order
         self.logger.debug("Putting all traces in order")
-        typical_positions = numpy.nanmedian(self.matched_peaks, axis=0)
-        _sort = numpy.argsort(typical_positions)
-        self.final_peaks = self.matched_peaks.T[_sort].T
+        self.typical_positions = numpy.nanmedian(self.matched_peaks, axis=0)
+        _sort = numpy.argsort(self.typical_positions)
+        self.ordered_peaks = self.matched_peaks.T[_sort].T
+
+        # count how many samples we have for each line
+        self.n_tracepoints = numpy.sum(numpy.isfinite(self.ordered_peaks), axis=0)
+        if (min_tracepoints < 0):
+            # negative numbers are taken to be fractional
+            min_tracepoints = self.ordered_peaks.shape[0] * numpy.fabs(min_tracepoints)
+        keepers = self.n_tracepoints >= min_tracepoints
+        self.final_peaks = self.ordered_peaks.T[keepers].T
 
         # interpolate missing values
         self.logger.info("Interpolating to fill in missing detections")
