@@ -195,6 +195,6 @@ class WiynHydraBlueFiberSpecs( WiynHydraFiberSpecs ):
     trace_minx = 120
     trace_maxx = 2520
 
-    reference_fiber_data_file = "hydra_blue_apertures.csv"
+    reference_fiber_data_file = "../../data/fiber_references/hydra_blue_apertures.csv"
 
 
