@@ -525,6 +525,10 @@ class GenericFiberSpecs(object):
             pyfits.ImageHDU(data=self.fullres_peaks, name='PEAKS'),
         ]).writeto("fiber_tracers_fullres.fits", overwrite=True)
 
+        self.all_centers_raw = centers
+        self.all_centers = centers_refined
+        self.all_lefts = all_lefts
+        self.all_rights = all_rights
         self.logger.info("All done tracing fibers")
 
     def extract_lineprofiles(self, fiber_ids=None, supersample=10, sample_step=None, save_as=None, reuse=False):
