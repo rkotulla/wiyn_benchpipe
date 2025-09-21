@@ -221,6 +221,7 @@ class GenericFiberSpecs(object):
     input_ext_header = 0
 
     reference_fiber_data = None
+    reference_fiber_data_file = None
     fiber_identifications = None
 
     def __init__(self, logger=None, debug=False, trace_minx=None, trace_maxx=None, header=None,
@@ -877,6 +878,7 @@ class GenericFiberSpecs(object):
             filename = self.reference_fiber_data_file
         if (filename is None):
             self.logger.warning("No reference fiber data file specified")
+            return None
         elif (not os.path.exists(filename)):
             self.logger.warning("Specified reference fiber data file (%s) not found" % (filename))
             self.logger.debug("Next trying to locate file in pipeline data directory")
@@ -1013,7 +1015,8 @@ class GenericFiberSpecs(object):
     def reorder_fibers(self, native_frame, reorder='native'):
 
         self.logger.debug("Re-ordering fibers, mode %s" % (reorder))
-        self.logger.debug("ref-fiber-data: %s" % (", ".join(self.reference_fiber_data.columns)))
+        if (self.reference_fiber_data is not None):
+            self.logger.debug("ref-fiber-data: %s" % (", ".join(self.reference_fiber_data.columns)))
         items = reorder.split('.')
         reorder_mode = items[0]
         reorder_keep = None
