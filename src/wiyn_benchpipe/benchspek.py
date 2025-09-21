@@ -194,6 +194,9 @@ class BenchSpek(object):
         if (rdnoise != 'auto'):
             self.readnoise_adu = rdnoise
             self.readnoise_adu_std = 0
+        elif (bias_stack is None):
+            self.logger.warning("No bias files found, setting readnoise to default")
+            self.readnoise_adu = 10
         elif (bias_stack.shape[0] < 2):
             self.logger.warning("Need at least 2 bias frames to compute readnoise")
             self.readnoise_adu = 10
