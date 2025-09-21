@@ -2405,8 +2405,9 @@ class BenchSpek(object):
         self.raw_traces.debug = False
         self.raw_traces.find_trace_fibers(self.master_flat)
         self.raw_traces.crossmatch_fiberids()
-        self.raw_traces.fiber_identifications.to_csv("fiber_ids.csv", index=False)
-        self.raw_traces.fiber_identifications.fillna(-999).to_csv("fiber_ids_nonan.csv", index=False)
+        if (self.raw_traces.fiber_identifications is not None):
+            self.raw_traces.fiber_identifications.to_csv("fiber_ids.csv", index=False)
+            self.raw_traces.fiber_identifications.fillna(-999).to_csv("fiber_ids_nonan.csv", index=False)
         import sys
         # sys.exit(-1)
         # self.raw_traces.interpolate_missing_fibers()
