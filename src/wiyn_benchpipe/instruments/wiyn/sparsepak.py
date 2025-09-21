@@ -12,7 +12,7 @@ class SparsepakFiberSpecs( WIYNBenchFiberSpecs ):
     name = "SparsePak @ WIYN"
     ref_fiber_id = 41
     trace_minx = 120
-    trace_maxx = 2430 #606
+    trace_maxx = 2540 #606
 
     _sky_fibers = [22, 16, 2, 37, 54, 80, 70]
     sky_fiber_ids = numpy.array(_sky_fibers, dtype=int) - 1
