@@ -72,5 +72,5 @@ class SparsepakFiberSpecs( WIYNBenchFiberSpecs ):
 
         return fiber_coords
 
-    def reorder_fibers(self, fiberspecs):
-        return fiberspecs[::-1, :]
+    # def reorder_fibers(self, fiberspecs):
+    #     return fiberspecs[::-1, :]
