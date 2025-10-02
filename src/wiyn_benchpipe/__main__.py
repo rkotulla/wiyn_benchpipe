@@ -24,6 +24,8 @@ elif (command == "model2d"):
     exec = grating_model_2d
 elif (command == "trace2ds9"):
     exec = traces_to_ds9
+elif (command == "nirwals_fluxcal"):
+    exec = nirwals_flux_calibration_scaling
 else:
     print("Unknown command %s" % (command))
     sys.exit(-1)

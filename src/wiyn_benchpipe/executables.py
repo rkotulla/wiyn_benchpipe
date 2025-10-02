@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
+import os
 import logging
 import argparse
 import multiparlog as mplog
@@ -392,3 +393,130 @@ def traces_to_ds9(cmdline_args=None):
         color=args.color)
 
     return 0
+
+
+
+
+def nirwals_flux_calibration_scaling(cmdline_args=None):
+
+    if (cmdline_args is None):
+        cmdline_args = sys.argv[1:]
+
+    mplog.setup_logging(debug_filename="wiyn_benchpipe_debug.log",
+                        log_filename="wiyn_benchpipe_reduce.log")
+    mpl_logger = logging.getLogger('matplotlib')
+    mpl_logger.setLevel(logging.WARNING)
+
+    logger = logging.getLogger("Traces-to-ds9")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", dest='input', type=str)
+    parser.add_argument("--reference", dest='reference', type=str)
+    parser.add_argument("--step", dest='step', default=20, type=float)
+    parser.add_argument("--window", dest='window', default=75, type=float)
+    parser.add_argument("--fibers", dest='fibers', default=None, type=str)
+    parser.add_argument("--fiberfrac", dest='fiber_fraction', default=0.2, type=float)
+    parser.add_argument("--plot", dest='plot', default=None, type=str)
+    parser.add_argument("--csv", dest='csv', default=None, type=str)
+    args = parser.parse_args(args=cmdline_args)
+
+    # open reference spectrum
+    ref_hdu = pyfits.open(args.reference)
+    ref_hdu.info()
+    ref = ref_hdu[0].data
+    hdr = ref_hdu[0].header
+    ref_wl = ref[0] * 1e4 # convert from micron to A
+    ref_flux = ref[1]
+
+    # open input file
+    sci_hdu = pyfits.open(args.input)
+    sci_hdr = sci_hdu[0].header
+    sci = sci_hdu[0].data
+    # print(repr(sci_hdr))
+    x = numpy.arange(sci.shape[1])
+    sci_wl = x * sci_hdr['CD1_1'] + sci_hdr['CRVAL1']
+
+    # find fibers with most flux
+    total_fiber_flux =  numpy.nanmean(sci, axis=1)
+
+    if (args.fibers is None):
+        peak_flux = numpy.max(total_fiber_flux)
+        select = total_fiber_flux > 0.1*peak_flux
+    else:
+        select_fibers = [int(f)-1 for f in args.fibers.split(",")]
+        select = numpy.zeros((sci.shape[0]))
+        for f in select_fibers:
+            select[f] = True
+    print("using %d fibers" % (numpy.sum(select)))
+
+    # add up all selected fibers
+    integrated_spectrum = numpy.sum(sci[select], axis=0)
+
+    # add up all flux in windows, and find scaling ratio
+    windowsize = args.window # Angstroems
+    steps = args.step
+    calib_df = pandas.DataFrame()
+    for i, central_wl in enumerate(numpy.arange(sci_wl[0], sci_wl[-1], steps)):
+        min_wl = numpy.max([sci_wl[0], central_wl-windowsize])
+        max_wl = numpy.min([sci_wl[-1], central_wl+windowsize])
+
+        in_sci_window = (sci_wl > min_wl) & (sci_wl < max_wl)
+        in_ref_window = (ref_wl > min_wl) & (ref_wl < max_wl)
+
+        calib_df.loc[i, 'min_wl'] = min_wl
+        calib_df.loc[i, 'max_wl'] = max_wl
+        calib_df.loc[i, 'central_wl'] = central_wl
+
+        calib_df.loc[i, 'sci_flux'] = numpy.nanmean(integrated_spectrum[in_sci_window])
+        calib_df.loc[i, 'ref_flux'] = numpy.nanmean(ref_flux[in_ref_window])
+    calib_df['sci2ref'] = calib_df['ref_flux'] / calib_df['sci_flux']
+
+    # now make a plot
+    fig, axs = plt.subplots(nrows=5, ncols=1, figsize=(12,16))
+    axs[0].set_title("Reference spectrum")
+    axs[0].plot(ref_wl, ref_flux, lw=0.5)
+    axs[0].set_xlabel(r"Wavelength [$\AA$]")
+    axs[0].set_ylabel(r"calibrated lux")
+
+    axs[1].set_title("NIRWALS spectrum")
+    axs[1].plot(sci_wl, integrated_spectrum, lw=1, label='spectrum')
+    axs[1].plot(calib_df['central_wl'], calib_df['sci_flux'], label='smoothed', alpha=0.5, lw=3)
+    # axs[1].scatter(calib_df['central_wl'], calib_df['sci_flux'], label='smoothed')
+    axs[1].set_xlim((sci_wl[0], sci_wl[-1]))
+    axs[1].set_xlabel(r"Wavelength [$\AA$]")
+    axs[1].set_ylabel(r"observed flux [counts/second]")
+    axs[1].legend()
+
+    axs[2].set_title("Reference spectrum, overlapping wavelength range")
+    axs[2].plot(ref_wl, ref_flux, lw=1, label='spectrum')
+    axs[2].plot(calib_df['central_wl'], calib_df['ref_flux'], label='smoothed', alpha=0.5, lw=3)
+    axs[2].set_xlim((sci_wl[0], sci_wl[-1]))
+    axs[2].set_xlabel(r"Wavelength [$\AA$]")
+    axs[2].set_ylabel(r"Flux")
+    axs[2].legend()
+
+    axs[3].set_title("flux calibration factor")
+    axs[3].plot(calib_df['central_wl'], calib_df['ref_flux']/calib_df['sci_flux'])
+    axs[3].set_xlim((sci_wl[0], sci_wl[-1]))
+    axs[3].set_xlabel(r"Wavelength [$\AA$]")
+    axs[3].set_ylabel(r"scaling factor [reference / science]")
+
+    full_scale = numpy.interp(sci_wl, calib_df['central_wl'], calib_df['sci2ref'])
+    axs[4].plot(sci_wl, integrated_spectrum*full_scale, lw=1, label="NIRWALS, calibrated")
+    axs[4].plot(ref_wl, ref_flux, lw=1, label="reference")
+    axs[4].set_xlim((sci_wl[0], sci_wl[-1]))
+    axs[4].legend()
+    axs[4].set_xlabel(r"Wavelength [$\AA$]")
+    axs[4].set_ylabel(r"calibrated flux")
+
+    fig.subplots_adjust(left=0.1, right=0.98, top=0.95, bottom=0.05, wspace=0.4, hspace=0.4)
+
+    bn, _ = os.path.splitext(args.input)
+    plot_fn = args.plot
+    if (plot_fn is None):
+        plot_fn = "%s__fluxcal.pdf" % (bn)
+    fig.savefig(args.plot)
+
+    csv_fn = args.csv
+    if (csv_fn is None):
+        csv_fn = "%s__fluxcal.csv" % (bn)
+    calib_df.to_csv(csv_fn, index=False)
