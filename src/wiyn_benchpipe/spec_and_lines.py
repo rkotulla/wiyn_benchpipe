@@ -69,6 +69,31 @@ class SpecAndLines(object):
 
         return fullres
 
+    def find_significant_pixels(self, filterwidth=3, nsigma=3):
+
+        fm = scipy.ndimage.median_filter(self.contsub, size=filterwidth)
+
+        use = numpy.isfinite(fm)
+        if (numpy.sum(use) <= 0):
+            self.logger.error("Unable to match spectra, no valid pixels")
+        for i in range(3):
+            try:
+                _stats = numpy.nanpercentile(fm[use], [16 ,50 ,84])
+                _med = _stats[1]
+                _sigma = 0.5 *(_stats[2 ] -_stats[0])
+                use = use & (fm > _med - 3 *_sigma) & (fm < _med + 3 *_sigma)
+            except:
+                mplog.log_exception()
+                _med = numpy.nanmedian(fm[use])
+                _sigma = numpy.nanstd(fm[use])
+                pass
+
+        mask = (fm > (_med + nsigma*_sigma))
+
+        return _med, _sigma, mask, fm
+
+        #min_flux_other = _med + 2* _sigma
+
     def match_amplitude(self, other, plot=False, plotname=None):
 
         gain = 0.2
