@@ -30,6 +30,7 @@ class Config(object):
                 'bias': {'files': []},
                 'flat': {'files': []},
                 'comp': {'files': []},
+                'badpixelmask': {'files': [], 'select': 'good', 'range': []},
                 'science': [],
                 'linelist': 'scidoc2212.fits',
                 'setup': {},

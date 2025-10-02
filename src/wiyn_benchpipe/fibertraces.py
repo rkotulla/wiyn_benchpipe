@@ -249,6 +249,11 @@ class GenericFiberSpecs(object):
 
     def find_trace_fibers(self, trace_image):
 
+        # replace all potential nans with a valid number
+        trace_image = trace_image.copy()
+        min_value = numpy.nanmin(trace_image)
+        trace_image[~numpy.isfinite(trace_image)] = min_value
+
         if (trace_image is None):
             raise ValueError("Need to provide a trace_image!")
         self.trace_image = trace_image

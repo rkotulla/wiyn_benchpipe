@@ -47,6 +47,8 @@ class BenchSpek(object):
     master_bias = None
     master_flat = None
     master_comp = None
+    badpixelmask = None
+
     n_fibers = 82
     linelist = []
     output_wl_min = None
@@ -139,7 +141,7 @@ class BenchSpek(object):
                 cosmics[opt] = value
         return cosmics
 
-    def basic_reduction(self, filelist, bias=None, flat=None,
+    def basic_reduction(self, filelist, bias=None, flat=None, bpm=None,
                         op=numpy.mean, return_stack=False, cosmics=None, gain=True):
         _list = []
         header = None
@@ -164,6 +166,9 @@ class BenchSpek(object):
                 data, crmask = ccdproc.cosmicray_lacosmic(data, satlevel=2**18, verbose=False, **cosmics)
             if (flat is not None):
                 data /= flat
+            if (bpm is not None):
+                data[bpm] = numpy.nan
+
             _list.append(data)
 
         if (_list):
@@ -175,6 +180,48 @@ class BenchSpek(object):
         if (return_stack):
             return combined, header, stack
         return combined, header
+
+    def make_badpixel_mask(self, save=None, *opts, **kwopts):
+        self.logger.info("Creating bad pixel mask")
+        bpm, _, bpm_stack = self.basic_reduction(
+            filelist=self.config.get('badpixelmask', "files"),
+            bias=None, flat=None, op=numpy.median, return_stack=True, *opts, **kwopts)
+        if (bpm is None):
+            self.logger.warning("No bad pixel mask specified")
+            return
+        bpm_select = self.config.get('badpixelmask', 'select')
+        bpm_range = self.config.get('badpixelmask', 'range')
+        print(bpm_select, bpm_range, type(bpm_range))
+        print(type(bpm_range[0]))
+        if (bpm_select not in ['good', 'bad']):
+            self.logger.warning("Wrong select mode for bad pixel mask: was '%s', allowed are only 'good' or 'bad'" % (bpm_select))
+            return
+        if (type(bpm_range) is not list):
+            self.logger.warning("BPM range needs to be a list of 2 values (min/max)")
+            return
+        if (len(bpm_range) != 2):
+            self.logger.warning("BPM range needs to be a list of 2 values (min/max)")
+            return
+
+        selected_pixels = (bpm >= bpm_range[0]) & (bpm <= bpm_range[1])
+        if (bpm_select == 'good'):
+            self.badpixelmask = numpy.ones_like(bpm, dtype=bool)
+            self.badpixelmask[selected_pixels] = False
+        else:
+            self.badpixelmask = numpy.zeros_like(bpm, dtype=bool)
+            self.badpixelmask[selected_pixels] = True
+        n_total_pixels = self.badpixelmask.shape[0]*self.badpixelmask.shape[1]
+        n_bad_pixels = numpy.sum(self.badpixelmask)
+        self.logger.info("Created bad pixel mask: pixels in range %.2f -- %.2f are %s :: %d total pixels, %d bad pixels (=> bad pixel fraction: %.2f%%)" % (
+            bpm_range[0], bpm_range[1], bpm_select,
+            n_total_pixels, n_bad_pixels, n_bad_pixels*100./n_total_pixels
+        ))
+
+        if (save is not None):
+            self.logger.info("Writing master bad pixel mask to %s", save)
+            self.write_cals_FITS(pyfits.PrimaryHDU(data=self.badpixelmask.astype(numpy.uint8)), filename=save)
+
+        return
 
     def make_master_bias(self, save=None, *opts, **kwopts):
         self.logger.info("Creating master bias")
@@ -2388,6 +2435,9 @@ class BenchSpek(object):
         # print("INSTRUMENT:", self.instrument.name)
         # print(type(self.instrument))
 
+        _master_bpm_fn = "badpixelmask.fits" if save else None
+        self.make_badpixel_mask(save=_master_bpm_fn)
+
         _master_bias_fn = "master_bias.fits" if save else None
         self.make_master_bias(save=_master_bias_fn, cosmics=cosmic_options)
 
@@ -3091,6 +3141,7 @@ class BenchSpek(object):
                 filelist=filelist,
                 bias=self.master_bias,
                 flat=None,
+                bpm=self.badpixelmask,
                 op=numpy.nanmedian
             )
 
